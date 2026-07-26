@@ -1,0 +1,338 @@
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  TextInput,
+} from 'react-native';
+import { Text, IconButton, ActivityIndicator } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useLocalSearchParams, Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../../../src/hooks/useAuth';
+import { chatService } from '../../../src/services/chatService';
+import { Message, ChatThread } from '../../../src/types/chat';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../../src/services/firebaseConfig';
+
+export default function ChatScreen() {
+  const { id: chatId } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [thread, setThread] = useState<ChatThread | null>(null);
+  const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(true);
+  const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    if (!chatId) return;
+
+    const unsubscribe = chatService.subscribeToMessages(chatId, (msgs) => {
+      setMessages(msgs);
+      setLoading(false);
+      if (user?.id && msgs.length > 0) {
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg.senderId !== user.id) {
+          const otherUserId = user.role === 'tutor' ? thread?.parentId : thread?.tutorId;
+          if (otherUserId) {
+            chatService.markAsRead(chatId, user.id, otherUserId);
+          }
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [chatId, user?.id]);
+
+  useEffect(() => {
+    if (!chatId) return;
+
+    const loadThread = async () => {
+      try {
+        const threadDoc = await getDoc(doc(db, 'chats', chatId));
+        if (threadDoc.exists()) {
+          setThread({ id: threadDoc.id, ...threadDoc.data() } as ChatThread);
+        }
+      } catch (error) {
+        console.error('Failed to load thread info:', error);
+      }
+    };
+
+    loadThread();
+  }, [chatId]);
+
+  const getPartnerName = () => {
+    if (!thread || !user) return 'Chat';
+    if (user.role === 'parent') {
+      return thread.tutorName || 'Tutor';
+    }
+    return thread.parentName || 'Parent';
+  };
+
+  const handleSend = async () => {
+    const trimmed = inputText.trim();
+    if (!trimmed || !chatId || !user?.id || !thread) return;
+
+    const messageText = trimmed;
+    setInputText('');
+
+    const recipientId = user.role === 'tutor' ? thread.parentId : thread.tutorId;
+
+    try {
+      await chatService.sendMessage(chatId, user.id, user.name, messageText, recipientId);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      setInputText(messageText);
+    }
+  };
+
+  const formatTimestamp = (timestamp: any) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+
+    const hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    const timeStr = `${displayHours}:${minutes} ${ampm}`;
+
+    if (isToday) return timeStr;
+
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${month}/${day} ${timeStr}`;
+  };
+
+  const renderMessage = ({ item }: { item: Message }) => {
+    const isSent = item.senderId === user?.id;
+
+    return (
+      <View style={[styles.messageRow, isSent ? styles.sentRow : styles.receivedRow]}>
+        <View style={[styles.messageBubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
+          {!isSent && item.senderName && (
+            <Text style={styles.senderName}>{item.senderName}</Text>
+          )}
+          <Text style={[styles.messageText, isSent ? styles.sentText : styles.receivedText]}>
+            {item.text}
+          </Text>
+          <View style={styles.messageFooter}>
+            <Text style={[styles.timestamp, isSent ? styles.sentTimestamp : styles.receivedTimestamp]}>
+              {formatTimestamp(item.timestamp)}
+            </Text>
+            {isSent && (
+              <MaterialCommunityIcons
+                name={item.status === 'seen' ? 'check-all' : 'check'}
+                size={14}
+                color={item.status === 'seen' ? '#93c5fd' : 'rgba(255,255,255,0.6)'}
+                style={styles.readReceipt}
+              />
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <MaterialCommunityIcons name="chat-outline" size={56} color="#d1d5db" />
+      <Text style={styles.emptyTitle}>Wave hello!</Text>
+      <Text style={styles.emptySubtitle}>Send a message to start the conversation.</Text>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#15803d" />
+        <Text style={styles.loadingText}>Loading messages...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: getPartnerName(),
+          headerTintColor: '#15803d',
+        }}
+      />
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior="padding"
+        keyboardVerticalOffset={insets.top + 56}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[
+            styles.messageList,
+            messages.length === 0 && styles.messageListEmpty,
+          ]}
+          ListEmptyComponent={renderEmpty}
+        />
+        <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
+          <TextInput
+            style={styles.textInput}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="Type your message here..."
+            placeholderTextColor="#9ca3af"
+            multiline
+            maxLength={1000}
+          />
+          <IconButton
+            icon="send"
+            iconColor={inputText.trim() ? '#15803d' : '#d1d5db'}
+            size={24}
+            onPress={handleSend}
+            disabled={!inputText.trim()}
+            style={styles.sendButton}
+          />
+        </View>
+      </KeyboardAvoidingView>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#6b7280',
+    fontSize: 14,
+  },
+  messageList: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  messageListEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  messageRow: {
+    marginVertical: 3,
+  },
+  sentRow: {
+    alignItems: 'flex-end',
+  },
+  receivedRow: {
+    alignItems: 'flex-start',
+  },
+  messageBubble: {
+    maxWidth: '75%',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  sentBubble: {
+    backgroundColor: '#15803d',
+    borderTopRightRadius: 4,
+  },
+  receivedBubble: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderTopLeftRadius: 4,
+  },
+  senderName: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803d',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  sentText: {
+    color: '#ffffff',
+  },
+  receivedText: {
+    color: '#1f2937',
+  },
+  messageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+    gap: 4,
+  },
+  timestamp: {
+    fontSize: 11,
+  },
+  sentTimestamp: {
+    color: 'rgba(255,255,255,0.7)',
+  },
+  receivedTimestamp: {
+    color: '#9ca3af',
+  },
+  readReceipt: {
+    marginLeft: 2,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#374151',
+    marginTop: 14,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: '#9ca3af',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  inputBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  textInput: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 100,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#1f2937',
+    marginRight: 4,
+  },
+  sendButton: {
+    margin: 0,
+  },
+});
