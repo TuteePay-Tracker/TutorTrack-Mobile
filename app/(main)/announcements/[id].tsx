@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../../src/hooks/useAuth';
 import { announcementService } from '../../../src/services/announcementService';
@@ -18,6 +18,7 @@ export default function AnnouncementDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -71,8 +72,15 @@ export default function AnnouncementDetailScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'Announcement',
+          title: '',
           headerTintColor: '#15803d',
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: '#ffffff' },
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+              <MaterialCommunityIcons name="chevron-left" size={28} color="#15803d" />
+            </TouchableOpacity>
+          ),
         }}
       />
       <ScrollView

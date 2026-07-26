@@ -118,7 +118,7 @@ export default function ChildDetailsScreen() {
         {Array.isArray(tutee.schedule) && tutee.schedule.length > 0 && (
           <Card style={styles.sectionCard}>
             <Card.Content>
-              <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push('/(main)/schedule')} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/schedule?from=children/${id}`)} activeOpacity={0.7}>
                 <MaterialCommunityIcons name="calendar-outline" size={18} color="#15803d" />
                 <Text style={styles.sectionTitle}>Schedule</Text>
                 <View style={styles.seeAllRow}>
@@ -145,7 +145,7 @@ export default function ChildDetailsScreen() {
 
         <Card style={styles.sectionCard}>
           <Card.Content>
-            <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push('/(main)/payments')} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/payments?from=children/${id}`)} activeOpacity={0.7}>
               <MaterialCommunityIcons name="credit-card-outline" size={18} color="#15803d" />
               <Text style={styles.sectionTitle}>Payment History</Text>
               <View style={styles.seeAllRow}>
@@ -171,7 +171,7 @@ export default function ChildDetailsScreen() {
 
         <Card style={styles.sectionCard}>
           <Card.Content>
-            <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push('/(main)/assessments')} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/assessments?from=children/${id}`)} activeOpacity={0.7}>
               <MaterialCommunityIcons name="chart-line" size={18} color="#15803d" />
               <Text style={styles.sectionTitle}>Assessments</Text>
               <View style={styles.seeAllRow}>

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Text, Card, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useTabBarHeight } from '../../src/hooks/useTabBarHeight';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useTutees } from '../../src/hooks/useTutees';
@@ -15,6 +15,8 @@ export default function PaymentsScreen() {
   const { user } = useAuth();
   const { tutees } = useTutees();
   const tabBarHeight = useTabBarHeight();
+  const router = useRouter();
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [paidMap, setPaidMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -71,7 +73,18 @@ export default function PaymentsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, title: 'Payment History', headerTintColor: '#15803d' }} />
+      <Stack.Screen options={{
+        headerShown: true,
+        title: '',
+        headerTintColor: '#15803d',
+        headerShadowVisible: false,
+        headerStyle: { backgroundColor: '#f9fafb' },
+        headerLeft: () => (
+          <TouchableOpacity onPress={() => from ? router.replace(`/(main)/${from}`) : router.back()} style={{ marginLeft: 4 }}>
+            <MaterialCommunityIcons name="chevron-left" size={28} color="#15803d" />
+          </TouchableOpacity>
+        ),
+      }} />
       <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]}>
         <Card style={styles.summaryCard}>
           <Card.Content>
