@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +25,7 @@ export default function MyChildrenScreen() {
     paymentStatus: string;
   }>>({});
   const [refreshing, setRefreshing] = useState(false);
+  const pendingRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     if (!user?.createdByTutorId || tutees.length === 0) {
@@ -40,21 +41,42 @@ export default function MyChildrenScreen() {
 
       const unsubTxn = paymentService.subscribeTransactionsByTutee(tutorId, tutee.id, (paid) => {
         totalPaid = paid;
+        const pending = pendingRef.current[tutee.id] || 0;
+        const effectivePaid = paid + pending;
         const totalDue = (tutee.totalSessions || 0) * (tutee.ratePerSession || 0);
-        const balance = Math.max(totalDue - paid, 0);
-        const paymentStatus = paid > 0 && balance === 0 ? 'Paid' : paid > 0 ? 'Partial' : 'Unpaid';
+        const balance = Math.max(totalDue - effectivePaid, 0);
+        const paymentStatus = effectivePaid > 0 && balance === 0 ? 'Paid' : effectivePaid > 0 ? 'Partial' : 'Unpaid';
 
         setMetricsMap((prev) => ({
           ...prev,
           [tutee.id]: {
             ...prev[tutee.id],
-            totalPaid: paid,
+            totalPaid: effectivePaid,
             balance,
             paymentStatus,
           },
         }));
       });
       cleanups.push(unsubTxn);
+
+      const unsubPending = paymentService.subscribePendingAmountByTutee(tutorId, tutee.id, (pending) => {
+        pendingRef.current[tutee.id] = pending;
+        const effectivePaid = totalPaid + pending;
+        const totalDue = (tutee.totalSessions || 0) * (tutee.ratePerSession || 0);
+        const balance = Math.max(totalDue - effectivePaid, 0);
+        const paymentStatus = effectivePaid > 0 && balance === 0 ? 'Paid' : effectivePaid > 0 ? 'Partial' : 'Unpaid';
+
+        setMetricsMap((prev) => ({
+          ...prev,
+          [tutee.id]: {
+            ...prev[tutee.id],
+            totalPaid: effectivePaid,
+            balance,
+            paymentStatus,
+          },
+        }));
+      });
+      cleanups.push(unsubPending);
 
       const unsubAtt = paymentService.subscribeAttendanceByTutee(tutorId, tutee.id, (att) => {
         const rate = att.totalSessions > 0 ? Math.round((att.presentCount / att.totalSessions) * 100) : 100;

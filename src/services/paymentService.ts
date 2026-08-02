@@ -1,5 +1,6 @@
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from './firebaseConfig';
+import { Payment, PaymentMethod } from '../types/payment';
 
 export interface PaymentTransaction {
   id: string;
@@ -70,6 +71,105 @@ export const paymentService = {
         });
       });
       callback({ presentCount: present, totalSessions: total });
+    });
+  },
+
+  async createPaymentProof(
+    data: {
+      tuteeId: string;
+      tuteeName: string;
+      amount: number;
+      sessionsCovered: number;
+      paymentMethod: PaymentMethod;
+      paymentDate: string;
+      notes?: string;
+      proofUrl: string;
+      coverageType?: 'full' | 'partial';
+      month?: string;
+    },
+    tutorId: string
+  ): Promise<Payment> {
+    const paymentsRef = collection(db, 'users', tutorId, 'payments');
+    const now = new Date();
+
+    const rawData: Record<string, unknown> = {
+      ...data,
+      status: 'pending',
+      createdAt: Timestamp.fromDate(now),
+      updatedAt: Timestamp.fromDate(now),
+    };
+
+    const paymentData = Object.fromEntries(
+      Object.entries(rawData).filter(([, v]) => v !== undefined)
+    );
+
+    const docRef = await addDoc(paymentsRef, paymentData);
+
+    return {
+      id: docRef.id,
+      ...data,
+      status: 'pending',
+      createdAt: now.toISOString(),
+    };
+  },
+
+  subscribePaymentsByTutee(
+    tutorId: string,
+    tuteeId: string,
+    callback: (payments: Payment[]) => void
+  ): () => void {
+    const paymentsRef = collection(db, 'users', tutorId, 'payments');
+    const q = query(paymentsRef, where('tuteeId', '==', tuteeId));
+
+    return onSnapshot(q, (snapshot) => {
+      const payments = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+        createdAt: docSnap.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      })) as Payment[];
+      payments.sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
+      callback(payments);
+    });
+  },
+
+  subscribePendingAmountByTutee(
+    tutorId: string,
+    tuteeId: string,
+    callback: (pendingTotal: number) => void
+  ): () => void {
+    const paymentsRef = collection(db, 'users', tutorId, 'payments');
+    const q = query(paymentsRef, where('tuteeId', '==', tuteeId), where('status', '==', 'pending'));
+
+    return onSnapshot(q, (snapshot) => {
+      const total = snapshot.docs.reduce((sum, docSnap) => {
+        const data = docSnap.data();
+        return sum + (typeof data.amount === 'number' ? data.amount : 0);
+      }, 0);
+      callback(total);
+    });
+  },
+
+  subscribeAllPayments(
+    tutorId: string,
+    tuteeIds: string[],
+    callback: (payments: Payment[]) => void
+  ): () => void {
+    if (tuteeIds.length === 0) {
+      callback([]);
+      return () => {};
+    }
+
+    const paymentsRef = collection(db, 'users', tutorId, 'payments');
+    const q = query(paymentsRef, where('tuteeId', 'in', tuteeIds));
+
+    return onSnapshot(q, (snapshot) => {
+      const payments = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+        createdAt: docSnap.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      })) as Payment[];
+      payments.sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
+      callback(payments);
     });
   },
 };

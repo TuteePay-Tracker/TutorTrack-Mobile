@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Modal } from 'react-native';
 import { Text, Card, Avatar, ActivityIndicator, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -7,12 +7,30 @@ import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
 import { useAuth } from '../../../src/hooks/useAuth';
 import { tuteeService } from '../../../src/services/tuteeService';
 import { paymentService, PaymentTransaction } from '../../../src/services/paymentService';
+import { Payment } from '../../../src/types/payment';
 import { assessmentService } from '../../../src/services/assessmentService';
 import { Tutee } from '../../../src/types/tutee';
 import { Assessment } from '../../../src/types/assessment';
 import { formatCurrency } from '../../../src/utils/formatCurrency';
 import { formatDate } from '../../../src/utils/formatDate';
 import { formatTime12h } from '../../../src/utils/formatTime';
+
+type MergedTxn = {
+  id: string;
+  amount: number;
+  paymentMethod: string;
+  paymentDate: string;
+  notes?: string;
+  status?: 'pending' | 'verified' | 'rejected';
+  proofUrl?: string;
+  source: 'transaction' | 'payment';
+};
+
+const STATUS_CONFIG = {
+  pending: { color: '#f59e0b', bg: '#fffbeb', label: 'Pending' },
+  verified: { color: '#059669', bg: '#f0fdf4', label: 'Verified' },
+  rejected: { color: '#dc2626', bg: '#fef2f2', label: 'Rejected' },
+};
 
 export default function ChildDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,8 +39,10 @@ export default function ChildDetailsScreen() {
   const tabBarHeight = useTabBarHeight();
   const [tutee, setTutee] = useState<Tutee | null>(null);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [proofViewerUrl, setProofViewerUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id || !user?.createdByTutorId) return;
@@ -40,6 +60,11 @@ export default function ChildDetailsScreen() {
           setTransactions(data);
         });
         unsubs.push(unsubTxn);
+
+        const unsubPayments = paymentService.subscribePaymentsByTutee(tutorId, id, (data) => {
+          setPayments(data);
+        });
+        unsubs.push(unsubPayments);
 
         const unsubAssess = assessmentService.subscribeByTutee(tutorId, id, (data) => {
           setAssessments(data);
@@ -78,6 +103,27 @@ export default function ChildDetailsScreen() {
   }
 
   const subjects = tutee.subjects?.length ? tutee.subjects : [tutee.subject];
+
+  const mergedTxns: MergedTxn[] = [
+    ...transactions.map((t) => ({
+      id: t.id,
+      amount: t.totalAmount,
+      paymentMethod: t.paymentMethod,
+      paymentDate: t.paymentDate,
+      notes: t.notes,
+      source: 'transaction' as const,
+    })),
+    ...payments.map((p) => ({
+      id: p.id,
+      amount: p.amount,
+      paymentMethod: p.paymentMethod,
+      paymentDate: p.paymentDate,
+      notes: p.notes,
+      status: p.status,
+      proofUrl: p.proofUrl,
+      source: 'payment' as const,
+    })),
+  ].sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
 
   return (
     <>
@@ -147,24 +193,42 @@ export default function ChildDetailsScreen() {
           <Card.Content>
             <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/payments?from=children/${id}`)} activeOpacity={0.7}>
               <MaterialCommunityIcons name="credit-card-outline" size={18} color="#15803d" />
-              <Text style={styles.sectionTitle}>Payment History</Text>
+              <Text style={styles.sectionTitle}>Payments</Text>
               <View style={styles.seeAllRow}>
                 <Text style={styles.seeAllText}>See All</Text>
                 <MaterialCommunityIcons name="chevron-right" size={18} color="#15803d" />
               </View>
             </TouchableOpacity>
-            {transactions.length === 0 ? (
+            {mergedTxns.length === 0 ? (
               <Text style={styles.emptyText}>No payment records yet</Text>
             ) : (
-              transactions.map((txn) => (
-                <View key={txn.id} style={styles.transactionItem}>
-                  <View style={styles.transactionInfo}>
-                    <Text style={styles.transactionAmount}>{formatCurrency(txn.totalAmount)}</Text>
-                    <Text style={styles.transactionMethod}>{txn.paymentMethod}</Text>
+              mergedTxns.map((txn) => {
+                const statusInfo = txn.status ? STATUS_CONFIG[txn.status] : null;
+                return (
+                  <View key={txn.id} style={styles.transactionItem}>
+                    <View style={styles.transactionInfo}>
+                      <View style={styles.transactionAmountRow}>
+                        <Text style={styles.transactionAmount}>{formatCurrency(txn.amount)}</Text>
+                        {statusInfo && (
+                          <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
+                            <Text style={[styles.statusText, { color: statusInfo.color }]}>
+                              {statusInfo.label}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.transactionMethod}>{txn.paymentMethod}</Text>
+                      {txn.notes && <Text style={styles.txnNotes}>{txn.notes}</Text>}
+                      {txn.proofUrl && (txn.status === 'pending' || txn.status === 'rejected') && (
+                        <TouchableOpacity onPress={() => setProofViewerUrl(txn.proofUrl!)} activeOpacity={0.7}>
+                          <Image source={{ uri: txn.proofUrl }} style={styles.proofThumb} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <Text style={styles.transactionDate}>{formatDate(txn.paymentDate)}</Text>
                   </View>
-                  <Text style={styles.transactionDate}>{formatDate(txn.paymentDate)}</Text>
-                </View>
-              ))
+                );
+              })
             )}
           </Card.Content>
         </Card>
@@ -203,6 +267,26 @@ export default function ChildDetailsScreen() {
           </Card.Content>
         </Card>
       </ScrollView>
+
+      <Modal visible={!!proofViewerUrl} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setProofViewerUrl(null)}
+        >
+          <View style={styles.modalContent}>
+            <TouchableOpacity
+              onPress={() => setProofViewerUrl(null)}
+              style={styles.modalClose}
+            >
+              <MaterialCommunityIcons name="close" size={24} color="#ffffff" />
+            </TouchableOpacity>
+            {proofViewerUrl && (
+              <Image source={{ uri: proofViewerUrl }} style={styles.modalImage} resizeMode="contain" />
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </>
   );
 }
@@ -316,7 +400,7 @@ const styles = StyleSheet.create({
   transactionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
@@ -324,15 +408,43 @@ const styles = StyleSheet.create({
   transactionInfo: {
     flex: 1,
   },
+  transactionAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   transactionAmount: {
     fontSize: 15,
     fontWeight: '700',
     color: '#111827',
   },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
   transactionMethod: {
     fontSize: 12,
     color: '#6b7280',
     marginTop: 2,
+  },
+  txnNotes: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  proofThumb: {
+    width: 80,
+    height: 56,
+    borderRadius: 6,
+    marginTop: 6,
+    resizeMode: 'cover',
   },
   transactionDate: {
     fontSize: 12,
@@ -381,5 +493,31 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     textAlign: 'center',
     paddingVertical: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  modalImage: {
+    width: '90%',
+    height: '70%',
+    borderRadius: 8,
   },
 });

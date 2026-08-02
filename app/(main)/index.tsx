@@ -49,6 +49,7 @@ export default function ParentDashboard() {
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [payments, setPayments] = useState<Record<string, number>>({});
+  const [pendingMap, setPendingMap] = useState<Record<string, number>>({});
   const [attendance, setAttendance] = useState<Record<string, { presentCount: number; totalSessions: number }>>({});
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -79,6 +80,11 @@ export default function ParentDashboard() {
       unsubPayments.push(
         paymentService.subscribeTransactionsByTutee(tutorId, tutee.id, (total: number) => {
           setPayments((prev) => ({ ...prev, [tutee.id]: total }));
+        })
+      );
+      unsubPayments.push(
+        paymentService.subscribePendingAmountByTutee(tutorId, tutee.id, (pending: number) => {
+          setPendingMap((prev) => ({ ...prev, [tutee.id]: pending }));
         })
       );
       unsubAttendance.push(
@@ -137,10 +143,11 @@ export default function ParentDashboard() {
     );
   }
 
-  const totalPaid = Math.round(Object.values(payments).reduce((sum, amount) => sum + amount, 0));
+  const totalPaid = Math.round(Object.values(payments).reduce((sum, amount) => sum + amount, 0)
+    + Object.values(pendingMap).reduce((sum, amount) => sum + amount, 0));
 
   const totalOutstanding = Math.round(tutees.reduce((sum, tutee) => {
-    const paid = payments[tutee.id] || 0;
+    const paid = (payments[tutee.id] || 0) + (pendingMap[tutee.id] || 0);
     const due = (tutee.totalSessions || 0) * (tutee.ratePerSession || 0);
     return sum + Math.max(due - paid, 0);
   }, 0));

@@ -20,6 +20,7 @@ export default function MainLayout() {
       <Tabs.Screen name="children/[id]" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />
       <Tabs.Screen name="payments" options={{ href: null }} />
+      <Tabs.Screen name="payment-proof" options={{ href: null }} />
       <Tabs.Screen name="assessments" options={{ href: null }} />
       <Tabs.Screen name="attendance" options={{ href: null }} />
     </Tabs>
