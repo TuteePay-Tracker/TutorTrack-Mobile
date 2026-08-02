@@ -24,8 +24,11 @@ import { Announcement } from '../../../src/types/announcement';
 import { Assessment } from '../../../src/types/assessment';
 import { KpiCard } from '../../../src/components/KpiCard';
 import { EmptyState } from '../../../src/components/EmptyState';
+import { ScaleOnPress } from '../../../src/components/ScaleOnPress';
+import { AnimatedBar } from '../../../src/components/AnimatedBar';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
-const CHART_COLORS = ['#15803d', '#f59e0b', '#3b82f6'];
+const CHART_COLORS = ['#2563eb', '#f59e0b', '#3b82f6'];
 
 const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -35,7 +38,7 @@ function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll: () => voi
       <Text style={styles.sectionTitle}>{title}</Text>
       <View style={styles.seeAllRow}>
         <Text style={styles.seeAllText}>See All</Text>
-        <MaterialCommunityIcons name="chevron-right" size={18} color="#15803d" />
+        <MaterialCommunityIcons name="chevron-right" size={18} color="#2563eb" />
       </View>
     </TouchableOpacity>
   );
@@ -117,7 +120,7 @@ export default function ParentDashboard() {
   if (tuteesLoading || loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#15803d" />
+        <ActivityIndicator size="large" color="#2563eb" />
       </View>
     );
   }
@@ -125,7 +128,7 @@ export default function ParentDashboard() {
   if (!user) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#15803d" />
+        <ActivityIndicator size="large" color="#2563eb" />
       </View>
     );
   }
@@ -159,6 +162,8 @@ export default function ParentDashboard() {
     totalSessions += att.totalSessions;
   });
   const attendanceRate = totalSessions > 0 ? Math.round((totalAttended / totalSessions) * 100) : 100;
+
+  const hasAttendance = tutees.some((t) => (attendance[t.id]?.totalSessions || 0) > 0);
 
   const latestAnnouncement = announcements.length > 0 ? announcements[0] : null;
 
@@ -211,12 +216,15 @@ export default function ParentDashboard() {
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[styles.contentContainer, { paddingTop: insets.top + 16, paddingBottom: tabBarHeight }]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#15803d']} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563eb']} />}
     >
       <Text style={styles.headerTitle}>Parent Dashboard</Text>
 
       {latestAnnouncement && (
-        <TouchableOpacity onPress={() => router.push(`/(main)/announcements/${latestAnnouncement.id}`)}>
+        <ScaleOnPress
+          onPress={() => router.push(`/(main)/announcements/${latestAnnouncement.id}`)}
+          entering={FadeInDown.duration(200)}
+        >
           <Card style={styles.announcementCard}>
             <Card.Content>
               <View style={styles.announcementHeader}>
@@ -229,29 +237,29 @@ export default function ParentDashboard() {
               </Text>
             </Card.Content>
           </Card>
-        </TouchableOpacity>
+        </ScaleOnPress>
       )}
 
       <View style={styles.kpiGrid}>
-        <View style={styles.kpiItem}>
+        <Animated.View style={styles.kpiItem} entering={FadeInDown.duration(200)}>
           <KpiCard
             title="Linked Children"
             value={tutees.length.toString()}
             icon="account-child-outline"
-            color="#15803d"
-            bgColor="#dcfce7"
+            color="#2563eb"
+            bgColor="#dbeafe"
           />
-        </View>
-        <View style={styles.kpiItem}>
+        </Animated.View>
+        <Animated.View style={styles.kpiItem} entering={FadeInDown.delay(60).duration(200)}>
           <KpiCard
             title="Total Paid"
             value={formatCurrency(totalPaid)}
             icon="cash-check"
-            color="#15803d"
-            bgColor="#dcfce7"
+            color="#2563eb"
+            bgColor="#dbeafe"
           />
-        </View>
-        <View style={styles.kpiItem}>
+        </Animated.View>
+        <Animated.View style={styles.kpiItem} entering={FadeInDown.delay(60).duration(200)}>
           <KpiCard
             title="Outstanding"
             value={formatCurrency(totalOutstanding)}
@@ -259,39 +267,44 @@ export default function ParentDashboard() {
             color="#dc2626"
             bgColor="#fef2f2"
           />
-        </View>
-        <View style={styles.kpiItem}>
+        </Animated.View>
+        <Animated.View style={styles.kpiItem} entering={FadeInDown.delay(120).duration(200)}>
           <KpiCard
             title="Attendance"
             value={`${attendanceRate}%`}
             icon="check-circle-outline"
-            color="#15803d"
-            bgColor="#dcfce7"
+            color="#2563eb"
+            bgColor="#dbeafe"
           />
-        </View>
+        </Animated.View>
       </View>
 
       {assessments.length > 0 && (
         <>
           <SectionHeader title="Monthly Scores" onSeeAll={() => router.push('/(main)/assessments')} />
-          <Card style={styles.chartCard}>
-            <Card.Content>
-              <View style={styles.vBarChart}>
+          <Animated.View entering={FadeInDown.duration(250)}>
+            <Card style={styles.chartCard}>
+              <Card.Content>
+                <View style={styles.vBarChart}>
                 <View style={styles.vBarChartArea}>
                   {months.map((month, mIdx) => (
                     <View key={month} style={styles.vBarGroup}>
                       <View style={styles.vBarGroupBars}>
-                        {tutees.slice(0, 3).map((tutee, tIdx) => {
-                          const scores = monthlyScores[tutee.id]?.[month] || [];
-                          const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
-                          const height = Math.max((avg / 100) * 140, avg > 0 ? 4 : 0);
-                          return (
-                            <View
-                              key={tutee.id}
-                              style={[styles.vBar, { height, backgroundColor: CHART_COLORS[tIdx % CHART_COLORS.length] }]}
-                            />
-                          );
-                        })}
+        {tutees.slice(0, 3).map((tutee, tIdx) => {
+          const scores = monthlyScores[tutee.id]?.[month] || [];
+          const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+          const height = Math.max((avg / 100) * 140, avg > 0 ? 4 : 0);
+          return (
+            <AnimatedBar
+              key={tutee.id}
+              axis="vertical"
+              height={height}
+              backgroundColor={CHART_COLORS[tIdx % CHART_COLORS.length]}
+              style={styles.vBar}
+              delay={mIdx * 80 + tIdx * 60}
+            />
+          );
+        })}
                       </View>
                       <Text style={styles.vBarLabel}>{month}</Text>
                     </View>
@@ -306,32 +319,41 @@ export default function ParentDashboard() {
                   ))}
                 </View>
               </View>
-            </Card.Content>
-          </Card>
+              </Card.Content>
+            </Card>
+          </Animated.View>
         </>
       )}
 
       {subjectLabels.length > 0 && (
         <>
           <SectionHeader title="Subject Averages" onSeeAll={() => router.push('/(main)/assessments')} />
-          <Card style={styles.chartCard}>
-            <Card.Content>
-              <View style={styles.hBarChart}>
-                {subjectLabels.map((subject) => {
-                  const avg = Math.round(subjectTotals[subject].sum / subjectTotals[subject].count);
-                  return (
-                    <View key={subject} style={styles.hBarRow}>
-                      <Text style={styles.hBarLabel}>{subject.length > 10 ? subject.slice(0, 10) + '...' : subject}</Text>
-                      <View style={styles.hBarTrack}>
-                        <View style={[styles.hBarFill, { width: `${Math.max(avg, 2)}%`, backgroundColor: avg >= 70 ? '#15803d' : avg >= 50 ? '#f59e0b' : '#dc2626' }]} />
+          <Animated.View entering={FadeInDown.duration(250)}>
+            <Card style={styles.chartCard}>
+              <Card.Content>
+                <View style={styles.hBarChart}>
+                  {subjectLabels.map((subject, idx) => {
+                    const avg = Math.round(subjectTotals[subject].sum / subjectTotals[subject].count);
+                    return (
+                      <View key={subject} style={styles.hBarRow}>
+                        <Text style={styles.hBarLabel}>{subject.length > 10 ? subject.slice(0, 10) + '...' : subject}</Text>
+                        <View style={styles.hBarTrack}>
+                          <AnimatedBar
+                            axis="horizontal"
+                            width={`${Math.max(avg, 2)}%`}
+                            backgroundColor={avg >= 70 ? '#2563eb' : avg >= 50 ? '#f59e0b' : '#dc2626'}
+                            style={styles.hBarFill}
+                            delay={idx * 80}
+                          />
+                        </View>
+                        <Text style={styles.hBarValue}>{avg}%</Text>
                       </View>
-                      <Text style={styles.hBarValue}>{avg}%</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </Card.Content>
-          </Card>
+                    );
+                  })}
+                </View>
+              </Card.Content>
+            </Card>
+          </Animated.View>
         </>
       )}
 
@@ -347,22 +369,24 @@ export default function ParentDashboard() {
           </Card.Content>
         </Card>
       ) : (
-        recentAssessments.map((a) => {
+        recentAssessments.map((a, idx) => {
           const tutee = tutees.find((t) => t.id === a.tuteeId);
           return (
-            <Card key={a.id} style={styles.listCard}>
-              <Card.Content style={styles.listRow}>
-                <MaterialCommunityIcons name="school-outline" size={20} color="#15803d" />
-                <View style={styles.listTextContainer}>
-                  <Text style={styles.listPrimary}>
-                    {a.subject || 'General'} - {tutee?.firstName || 'Child'}
-                  </Text>
-                  <Text style={styles.listSecondary}>
-                    {new Date(a.date).toLocaleDateString()} · Score: {a.score}%
-                  </Text>
-                </View>
-              </Card.Content>
-            </Card>
+            <Animated.View key={a.id} entering={FadeInDown.delay(idx * 40).duration(200)}>
+              <Card style={styles.listCard}>
+                <Card.Content style={styles.listRow}>
+                  <MaterialCommunityIcons name="school-outline" size={20} color="#2563eb" />
+                  <View style={styles.listTextContainer}>
+                    <Text style={styles.listPrimary}>
+                      {a.subject || 'General'} - {tutee?.firstName || 'Child'}
+                    </Text>
+                    <Text style={styles.listSecondary}>
+                      {new Date(a.date).toLocaleDateString()} · Score: {a.score}%
+                    </Text>
+                  </View>
+                </Card.Content>
+              </Card>
+            </Animated.View>
           );
         })
       )}
@@ -380,20 +404,58 @@ export default function ParentDashboard() {
         </Card>
       ) : (
         sortedSchedule.map((s, idx) => (
-          <Card key={idx} style={styles.listCard}>
-            <Card.Content style={styles.listRow}>
-              <MaterialCommunityIcons name="calendar-clock-outline" size={20} color="#15803d" />
-              <View style={styles.listTextContainer}>
-                <Text style={styles.listPrimary}>
-                  {s.tuteeName} - {s.subject || 'Session'}
-                </Text>
-                <Text style={styles.listSecondary}>
-                  {s.day} · {formatTime12h(s.time)}
-                </Text>
-              </View>
-            </Card.Content>
-          </Card>
+          <Animated.View key={idx} entering={FadeInDown.delay(idx * 40).duration(200)}>
+            <Card style={styles.listCard}>
+              <Card.Content style={styles.listRow}>
+                <MaterialCommunityIcons name="calendar-clock-outline" size={20} color="#2563eb" />
+                <View style={styles.listTextContainer}>
+                  <Text style={styles.listPrimary}>
+                    {s.tuteeName} - {s.subject || 'Session'}
+                  </Text>
+                  <Text style={styles.listSecondary}>
+                    {s.day} · {formatTime12h(s.time)}
+                  </Text>
+                </View>
+              </Card.Content>
+            </Card>
+          </Animated.View>
         ))
+      )}
+
+      <SectionHeader title="Attendance" onSeeAll={() => router.push('/(main)/attendance')} />
+      {!hasAttendance ? (
+        <Card style={styles.card}>
+          <Card.Content>
+            <EmptyState
+              icon="calendar-check-outline"
+              title="No Attendance"
+              message="No attendance records available yet."
+            />
+          </Card.Content>
+        </Card>
+      ) : (
+        tutees.map((tutee, idx) => {
+          const att = attendance[tutee.id] || { presentCount: 0, totalSessions: 0 };
+          const rate = att.totalSessions > 0 ? Math.round((att.presentCount / att.totalSessions) * 100) : 100;
+          return (
+            <Animated.View key={tutee.id} entering={FadeInDown.delay(idx * 40).duration(200)}>
+              <Card style={styles.listCard}>
+                <Card.Content style={styles.listRow}>
+                  <MaterialCommunityIcons name="calendar-check-outline" size={20} color="#2563eb" />
+                  <View style={styles.listTextContainer}>
+                    <Text style={styles.listPrimary}>{tutee.firstName} {tutee.surname}</Text>
+                    <Text style={styles.listSecondary}>{att.presentCount} of {att.totalSessions} sessions attended</Text>
+                  </View>
+                  <View style={[styles.dashAttBadge, { backgroundColor: rate >= 80 ? '#dbeafe' : rate >= 50 ? '#fef3c7' : '#fef2f2' }]}>
+                    <Text style={[styles.dashAttRate, { color: rate >= 80 ? '#2563eb' : rate >= 50 ? '#d97706' : '#dc2626' }]}>
+                      {rate}%
+                    </Text>
+                  </View>
+                </Card.Content>
+              </Card>
+            </Animated.View>
+          );
+        })
       )}
     </ScrollView>
   );
@@ -402,7 +464,7 @@ export default function ParentDashboard() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#eff6ff',
   },
   contentContainer: {
     padding: 16,
@@ -412,12 +474,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#eff6ff',
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#15803d',
+    color: '#2563eb',
     marginBottom: 16,
     marginTop: 8,
   },
@@ -461,7 +523,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#15803d',
+    color: '#2563eb',
     marginTop: 16,
     marginBottom: 12,
   },
@@ -480,7 +542,7 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#15803d',
+    color: '#2563eb',
   },
   chartCard: {
     backgroundColor: '#ffffff',
@@ -602,5 +664,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6b7280',
     marginTop: 2,
+  },
+  dashAttBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  dashAttRate: {
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

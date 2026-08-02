@@ -138,12 +138,12 @@ export default function PaymentsScreen() {
       <Stack.Screen options={{
         headerShown: true,
         title: focusedTutee ? `${focusedTutee.firstName}'s Payments` : 'Payments',
-        headerTintColor: '#15803d',
+        headerTintColor: '#2563eb',
         headerShadowVisible: false,
         headerStyle: { backgroundColor: '#f9fafb' },
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-            <MaterialCommunityIcons name="chevron-left" size={28} color="#15803d" />
+            <MaterialCommunityIcons name="chevron-left" size={28} color="#2563eb" />
           </TouchableOpacity>
         ),
       }} />
@@ -170,7 +170,7 @@ export default function PaymentsScreen() {
           mode="contained"
           onPress={() => router.push(focusTuteeId ? `/(main)/payment-proof?tuteeId=${focusTuteeId}` : '/(main)/payment-proof')}
           icon="cash-plus"
-          buttonColor="#15803d"
+          buttonColor="#2563eb"
           style={styles.submitPaymentButton}
           contentStyle={styles.submitPaymentContent}
           labelStyle={styles.submitPaymentLabel}
@@ -296,7 +296,7 @@ export default function PaymentsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f9fafb' },
   content: { padding: 16, paddingBottom: 110 },
-  summaryCard: { marginBottom: 20, borderRadius: 16, elevation: 2, backgroundColor: '#15803d' },
+  summaryCard: { marginBottom: 20, borderRadius: 16, elevation: 2, backgroundColor: '#2563eb' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 16 },
   summaryItem: { alignItems: 'center', flex: 1, gap: 4 },
   summaryValue: { fontSize: 18, fontWeight: '800', color: '#ffffff' },
@@ -307,11 +307,11 @@ const styles = StyleSheet.create({
   submitPaymentLabel: { fontWeight: '800', fontSize: 15 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 10, marginTop: 4 },
   childCard: { marginBottom: 8, borderRadius: 12, elevation: 1 },
-  childCardClickable: { borderColor: '#15803d', borderWidth: 1 },
+  childCardClickable: { borderColor: '#2563eb', borderWidth: 1 },
   childRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   childLeft: { flex: 1 },
   childName: { fontSize: 14, fontWeight: '700', color: '#111827' },
-  tapHint: { fontSize: 11, fontWeight: '600', color: '#15803d', marginTop: 2 },
+  tapHint: { fontSize: 11, fontWeight: '600', color: '#2563eb', marginTop: 2 },
   childAmounts: { alignItems: 'flex-end' },
   paidText: { fontSize: 13, fontWeight: '600', color: '#059669' },
   paidFullText: { fontSize: 13, fontWeight: '700', color: '#059669', marginTop: 2 },

@@ -100,7 +100,7 @@ export default function ChangePasswordScreen() {
             disabled={isLoading}
             style={styles.submitButton}
             labelStyle={styles.submitButtonText}
-            buttonColor="#15803d"
+            buttonColor="#2563eb"
           >
             Set Password & Continue
           </Button>
@@ -108,7 +108,7 @@ export default function ChangePasswordScreen() {
       </View>
 
       <View style={styles.footer}>
-        <MaterialCommunityIcons name="school" size={14} color="#15803d" />
+        <MaterialCommunityIcons name="school" size={14} color="#2563eb" />
         <Text style={styles.footerText}>Tutor Track — Secure Parent Portal</Text>
       </View>
 
@@ -127,7 +127,7 @@ export default function ChangePasswordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#eff6ff',
     justifyContent: 'center',
     padding: 24,
   },
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 60,
     height: 60,
-    backgroundColor: '#15803d',
+    backgroundColor: '#2563eb',
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',

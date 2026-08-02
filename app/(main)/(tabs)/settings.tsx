@@ -111,7 +111,7 @@ export default function SettingsScreen() {
             <Switch
               value={pushEnabled}
               onValueChange={setPushEnabled}
-              color="#15803d"
+              color="#2563eb"
             />
           </View>
         </Card.Content>
@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   },
   header: {
     fontWeight: '700',
-    color: '#15803d',
+    color: '#2563eb',
     marginBottom: 20,
   },
   card: {
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: '600',
-    color: '#15803d',
+    color: '#2563eb',
     marginBottom: 4,
   },
   divider: {
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatar: {
-    backgroundColor: '#15803d',
+    backgroundColor: '#2563eb',
   },
   profileInfo: {
     marginLeft: 16,

@@ -43,6 +43,7 @@ export default function ChildDetailsScreen() {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [loading, setLoading] = useState(true);
   const [proofViewerUrl, setProofViewerUrl] = useState<string | null>(null);
+  const [attendance, setAttendance] = useState<{ presentCount: number; totalSessions: number }>({ presentCount: 0, totalSessions: 0 });
 
   useEffect(() => {
     if (!id || !user?.createdByTutorId) return;
@@ -71,6 +72,9 @@ export default function ChildDetailsScreen() {
         });
         unsubs.push(unsubAssess);
 
+        const unsubAtt = paymentService.subscribeAttendanceByTutee(tutorId, id, setAttendance);
+        unsubs.push(unsubAtt);
+
         setLoading(false);
       } catch (error) {
         console.error('Error fetching child details:', error);
@@ -88,7 +92,7 @@ export default function ChildDetailsScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#15803d" />
+        <ActivityIndicator size="large" color="#2563eb" />
         <Text style={styles.loadingText}>Loading details...</Text>
       </View>
     );
@@ -103,6 +107,11 @@ export default function ChildDetailsScreen() {
   }
 
   const subjects = tutee.subjects?.length ? tutee.subjects : [tutee.subject];
+
+  const attendanceRate =
+    attendance.totalSessions > 0
+      ? Math.round((attendance.presentCount / attendance.totalSessions) * 100)
+      : 100;
 
   const mergedTxns: MergedTxn[] = [
     ...transactions.map((t) => ({
@@ -131,7 +140,12 @@ export default function ChildDetailsScreen() {
         options={{
           headerShown: true,
           title: `${tutee.firstName} ${tutee.surname}`,
-          headerTintColor: '#15803d',
+          headerTintColor: '#2563eb',
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+              <MaterialCommunityIcons name="chevron-left" size={28} color="#2563eb" />
+            </TouchableOpacity>
+          ),
         }}
       />
       <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]}>
@@ -164,12 +178,12 @@ export default function ChildDetailsScreen() {
         {Array.isArray(tutee.schedule) && tutee.schedule.length > 0 && (
           <Card style={styles.sectionCard}>
             <Card.Content>
-              <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/schedule?from=children/${id}`)} activeOpacity={0.7}>
-                <MaterialCommunityIcons name="calendar-outline" size={18} color="#15803d" />
+              <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/schedule`)} activeOpacity={0.7}>
+                <MaterialCommunityIcons name="calendar-outline" size={18} color="#2563eb" />
                 <Text style={styles.sectionTitle}>Schedule</Text>
                 <View style={styles.seeAllRow}>
                   <Text style={styles.seeAllText}>See All</Text>
-                  <MaterialCommunityIcons name="chevron-right" size={18} color="#15803d" />
+                  <MaterialCommunityIcons name="chevron-right" size={18} color="#2563eb" />
                 </View>
               </TouchableOpacity>
               {tutee.schedule.map((slot, index) => {
@@ -192,11 +206,11 @@ export default function ChildDetailsScreen() {
         <Card style={styles.sectionCard}>
           <Card.Content>
             <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/payments?from=children/${id}`)} activeOpacity={0.7}>
-              <MaterialCommunityIcons name="credit-card-outline" size={18} color="#15803d" />
+              <MaterialCommunityIcons name="credit-card-outline" size={18} color="#2563eb" />
               <Text style={styles.sectionTitle}>Payments</Text>
               <View style={styles.seeAllRow}>
                 <Text style={styles.seeAllText}>See All</Text>
-                <MaterialCommunityIcons name="chevron-right" size={18} color="#15803d" />
+                <MaterialCommunityIcons name="chevron-right" size={18} color="#2563eb" />
               </View>
             </TouchableOpacity>
             {mergedTxns.length === 0 ? (
@@ -235,12 +249,38 @@ export default function ChildDetailsScreen() {
 
         <Card style={styles.sectionCard}>
           <Card.Content>
-            <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/assessments?from=children/${id}`)} activeOpacity={0.7}>
-              <MaterialCommunityIcons name="chart-line" size={18} color="#15803d" />
+            <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/attendance?from=children/${id}`)} activeOpacity={0.7}>
+              <MaterialCommunityIcons name="calendar-check-outline" size={18} color="#2563eb" />
+              <Text style={styles.sectionTitle}>Attendance</Text>
+              <View style={styles.seeAllRow}>
+                <Text style={styles.seeAllText}>See All</Text>
+                <MaterialCommunityIcons name="chevron-right" size={18} color="#2563eb" />
+              </View>
+            </TouchableOpacity>
+            <View style={styles.attendanceRow}>
+              <View>
+                <Text style={styles.attendanceInfo}>
+                  {attendance.presentCount} of {attendance.totalSessions} sessions attended
+                </Text>
+                <Text style={styles.attendanceSub}>Present and scheduled classes</Text>
+              </View>
+              <View style={[styles.rateBadge, { backgroundColor: attendanceRate >= 80 ? '#dbeafe' : attendanceRate >= 50 ? '#fef3c7' : '#fef2f2' }]}>
+                <Text style={[styles.rateText, { color: attendanceRate >= 80 ? '#2563eb' : attendanceRate >= 50 ? '#d97706' : '#dc2626' }]}>
+                  {attendanceRate}%
+                </Text>
+              </View>
+            </View>
+          </Card.Content>
+        </Card>
+
+        <Card style={styles.sectionCard}>
+          <Card.Content>
+            <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/assessments`)} activeOpacity={0.7}>
+              <MaterialCommunityIcons name="chart-line" size={18} color="#2563eb" />
               <Text style={styles.sectionTitle}>Assessments</Text>
               <View style={styles.seeAllRow}>
                 <Text style={styles.seeAllText}>See All</Text>
-                <MaterialCommunityIcons name="chevron-right" size={18} color="#15803d" />
+                <MaterialCommunityIcons name="chevron-right" size={18} color="#2563eb" />
               </View>
             </TouchableOpacity>
             {assessments.length === 0 ? (
@@ -322,7 +362,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   avatarFallback: {
-    backgroundColor: '#15803d',
+    backgroundColor: '#2563eb',
   },
   profileInfo: {
     flex: 1,
@@ -344,14 +384,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   subjectBadge: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#dbeafe',
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 12,
   },
   subjectText: {
     fontSize: 12,
-    color: '#15803d',
+    color: '#2563eb',
     fontWeight: '600',
   },
   sectionCard: {
@@ -379,7 +419,7 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#15803d',
+    color: '#2563eb',
   },
   scheduleItem: {
     flexDirection: 'row',
@@ -487,6 +527,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#9ca3af',
     marginTop: 2,
+  },
+  attendanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  attendanceInfo: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  attendanceSub: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  rateBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  rateText: {
+    fontSize: 16,
+    fontWeight: '800',
   },
   emptyText: {
     fontSize: 14,

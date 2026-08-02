@@ -66,7 +66,7 @@ export default function ForgotPasswordScreen() {
               disabled={isLoading}
               style={styles.resetButton}
               labelStyle={styles.resetButtonText}
-              buttonColor="#15803d"
+              buttonColor="#2563eb"
             >
               Send Reset Link
             </Button>
@@ -79,7 +79,7 @@ export default function ForgotPasswordScreen() {
             onPress={() => router.back()}
             style={styles.resetButton}
             labelStyle={styles.resetButtonText}
-            buttonColor="#15803d"
+            buttonColor="#2563eb"
           >
             Back to Login
           </Button>
@@ -110,7 +110,7 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#eff6ff',
     justifyContent: 'center',
     padding: 24,
   },
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 56,
     height: 56,
-    backgroundColor: '#15803d',
+    backgroundColor: '#2563eb',
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   backText: {
-    color: '#15803d',
+    color: '#2563eb',
     fontSize: 13,
     fontWeight: '600',
   },

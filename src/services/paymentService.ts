@@ -30,6 +30,17 @@ export interface MonthlyRecord {
   createdAt: string;
 }
 
+export interface AttendanceDay {
+  date: string;
+  status: string;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  month: string;
+  dayPayments: AttendanceDay[];
+}
+
 export const paymentService = {
   subscribeTransactionsByTutee(
     tutorId: string,
@@ -118,6 +129,31 @@ export const paymentService = {
         console.error('Error in records subscription:', error);
       }
     );
+  },
+
+  subscribeAttendanceRecords(
+    tutorId: string,
+    tuteeId: string,
+    callback: (records: AttendanceRecord[]) => void
+  ): () => void {
+    const recordsRef = collection(db, 'users', tutorId, 'paymentRecords');
+    const q = query(recordsRef, where('tuteeId', '==', tuteeId));
+
+    return onSnapshot(q, (snapshot) => {
+      const records = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          month: data.month as string,
+          dayPayments: ((data.dayPayments || []) as any[]).map((dp: any) => ({
+            date: dp.date as string,
+            status: dp.status as string,
+          })),
+        };
+      });
+      records.sort((a, b) => b.month.localeCompare(a.month));
+      callback(records);
+    });
   },
 
   async createPaymentProof(

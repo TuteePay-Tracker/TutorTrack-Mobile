@@ -1,7 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scale, verticalScale } from 'react-native-size-matters';
+import Animated, {
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  interpolate,
+} from 'react-native-reanimated';
 
 interface TabDef {
   key: string;
@@ -23,19 +31,60 @@ interface FloatingTabBarProps {
   descriptors: any;
 }
 
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
+function TabButton({ icon, focused, onPress }: { icon: string; focused: boolean; onPress: () => void }) {
+  const progress = useSharedValue(focused ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withSpring(focused ? 1 : 0, { damping: 16, stiffness: 220 });
+  }, [focused, progress]);
+
+  const pillStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(progress.value, [0, 1], [1, 1.08]) }],
+  }));
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: interpolate(progress.value, [0, 1], [1, 1.15]) },
+      { translateY: interpolate(progress.value, [0, 1], [0, -1]) },
+    ],
+  }));
+
+  return (
+    <AnimatedTouchableOpacity
+      style={[styles.tab, focused && styles.activeTab, pillStyle]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Animated.View style={iconStyle}>
+        <MaterialCommunityIcons
+          name={icon as any}
+          size={scale(20)}
+          color={focused ? '#ffffff' : '#9ca3af'}
+        />
+      </Animated.View>
+    </AnimatedTouchableOpacity>
+  );
+}
+
 export function FloatingTabBar({ state, navigation }: FloatingTabBarProps) {
   const insets = useSafeAreaInsets();
 
   const focusedRoute = state.routes[state.index];
-  if (focusedRoute?.name === 'chat' && focusedRoute?.state?.index > 0) {
+  if (!focusedRoute) return null;
+  if (!tabs.some((t) => t.key === focusedRoute.name)) {
     return null;
   }
-  if (focusedRoute?.name === 'announcements' && focusedRoute?.state?.index > 0) {
+  if (focusedRoute.state?.index > 0) {
     return null;
   }
 
   return (
-    <View style={[styles.wrapper, { bottom: insets.bottom + 8 }]}>
+    <Animated.View
+      style={[styles.wrapper, { bottom: insets.bottom + verticalScale(8) }]}
+      entering={FadeInUp.delay(120).springify().damping(16)}
+    >
       <View style={styles.bar}>
         {tabs.map((tab) => {
           const tabIndex = state.routes.findIndex((r: any) => r.name === tab.key);
@@ -43,34 +92,28 @@ export function FloatingTabBar({ state, navigation }: FloatingTabBarProps) {
           const isFocused = state.index === tabIndex;
 
           return (
-            <TouchableOpacity
+            <TabButton
               key={tab.key}
-              style={[styles.tab, isFocused && styles.activeTab]}
+              icon={tab.icon}
+              focused={isFocused}
               onPress={() => {
                 if (!isFocused) {
                   navigation.navigate(state.routes[tabIndex].name);
                 }
               }}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons
-                name={tab.icon as any}
-                size={20}
-                color={isFocused ? '#ffffff' : '#9ca3af'}
-              />
-            </TouchableOpacity>
+            />
           );
         })}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    left: 16,
-    right: 16,
+    left: scale(16),
+    right: scale(16),
     alignItems: 'center',
     zIndex: 100,
     elevation: 10,
@@ -78,9 +121,9 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     backgroundColor: '#ffffff',
-    borderRadius: 28,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    borderRadius: scale(28),
+    paddingVertical: verticalScale(8),
+    paddingHorizontal: scale(8),
     alignItems: 'center',
     justifyContent: 'space-around',
     shadowColor: '#000',
@@ -92,12 +135,12 @@ const styles = StyleSheet.create({
   tab: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    minWidth: 48,
+    paddingVertical: verticalScale(8),
+    paddingHorizontal: scale(14),
+    borderRadius: scale(20),
+    minWidth: scale(48),
   },
   activeTab: {
-    backgroundColor: '#15803d',
+    backgroundColor: '#2563eb',
   },
 });

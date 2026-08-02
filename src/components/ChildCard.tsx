@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Card, Text, Avatar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tutee } from '../types/tutee';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatTime12h } from '../utils/formatTime';
+import { ScaleOnPress } from './ScaleOnPress';
 
 interface ChildCardProps {
   tutee: Tutee;
@@ -38,8 +39,9 @@ export const ChildCard = ({ tutee, metrics, onPress }: ChildCardProps) => {
   };
 
   return (
-    <Card style={styles.card} onPress={onPress}>
-      <Card.Content>
+    <ScaleOnPress onPress={onPress} style={styles.card}>
+      <Card>
+        <Card.Content>
         <View style={styles.header}>
           {tutee.photoUrl ? (
             <Avatar.Image size={52} source={{ uri: tutee.photoUrl }} style={styles.avatar} />
@@ -101,18 +103,19 @@ export const ChildCard = ({ tutee, metrics, onPress }: ChildCardProps) => {
         </View>
 
         <View style={styles.scheduleSection}>
-          <MaterialCommunityIcons name="calendar-outline" size={14} color="#15803d" />
+          <MaterialCommunityIcons name="calendar-outline" size={14} color="#2563eb" />
           <View style={styles.scheduleContent}>
             <Text style={styles.scheduleTitle}>SCHEDULE</Text>
             {renderSchedule()}
           </View>
         </View>
 
-        <TouchableOpacity style={styles.viewButton} onPress={onPress}>
+        <View style={styles.viewButton}>
           <Text style={styles.viewButtonText}>View Details & Reports</Text>
-        </TouchableOpacity>
-      </Card.Content>
-    </Card>
+        </View>
+        </Card.Content>
+      </Card>
+    </ScaleOnPress>
   );
 };
 
@@ -130,7 +133,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   avatarFallback: {
-    backgroundColor: '#15803d',
+    backgroundColor: '#2563eb',
     marginRight: 12,
   },
   avatarLabel: {
@@ -157,14 +160,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   subjectBadge: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#dbeafe',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,
   },
   subjectText: {
     fontSize: 11,
-    color: '#15803d',
+    color: '#2563eb',
     fontWeight: '600',
   },
   metricsGrid: {
@@ -241,7 +244,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   viewButton: {
-    backgroundColor: '#15803d',
+    backgroundColor: '#2563eb',
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',

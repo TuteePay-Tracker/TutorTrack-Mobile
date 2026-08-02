@@ -9,6 +9,8 @@ import { useTutees } from '../../../../src/hooks/useTutees';
 import { chatService } from '../../../../src/services/chatService';
 import { ChatThread } from '../../../../src/types/chat';
 import { Tutee } from '../../../../src/types/tutee';
+import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 export default function ChatThreadListScreen() {
   const { user } = useAuth();
@@ -101,43 +103,45 @@ export default function ChatThreadListScreen() {
     }
   };
 
-  const renderThreadItem = ({ item }: { item: ChatThread }) => {
+  const renderThreadItem = ({ item, index }: { item: ChatThread; index: number }) => {
     const partnerName = getPartnerName(item);
     const unreadCount = item.unreadCount?.[user?.id || ''] || 0;
 
     return (
-      <TouchableOpacity
-        style={styles.threadItem}
-        onPress={() => router.push(`/(main)/chat/${item.id}`)}
-      >
-        <Avatar.Text
-          size={48}
-          label={getInitials(partnerName)}
-          style={styles.avatar}
-          labelStyle={styles.avatarLabel}
-        />
-        <View style={styles.threadContent}>
-          <View style={styles.threadHeader}>
-            <Text style={styles.partnerName} numberOfLines={1}>
-              {partnerName}
-            </Text>
-            {item.lastMessageTimestamp && (
-              <Text style={styles.timestamp}>
-                {formatTimestamp(item.lastMessageTimestamp)}
+      <Animated.View entering={FadeInDown.delay(index * 40).duration(200)}>
+        <TouchableOpacity
+          style={styles.threadItem}
+          onPress={() => router.push(`/(main)/chat/${item.id}`)}
+        >
+          <Avatar.Text
+            size={scale(48)}
+            label={getInitials(partnerName)}
+            style={styles.avatar}
+            labelStyle={styles.avatarLabel}
+          />
+          <View style={styles.threadContent}>
+            <View style={styles.threadHeader}>
+              <Text style={styles.partnerName} numberOfLines={1}>
+                {partnerName}
               </Text>
-            )}
+              {item.lastMessageTimestamp && (
+                <Text style={styles.timestamp}>
+                  {formatTimestamp(item.lastMessageTimestamp)}
+                </Text>
+              )}
+            </View>
+            <Text style={styles.studentLabel} numberOfLines={1}>
+              re: {item.tuteeName}
+            </Text>
+            <Text style={styles.lastMessage} numberOfLines={1}>
+              {item.lastMessageText || 'No messages yet'}
+            </Text>
           </View>
-          <Text style={styles.studentLabel} numberOfLines={1}>
-            re: {item.tuteeName}
-          </Text>
-          <Text style={styles.lastMessage} numberOfLines={1}>
-            {item.lastMessageText || 'No messages yet'}
-          </Text>
-        </View>
-        {unreadCount > 0 && (
-          <Badge style={styles.badge}>{unreadCount}</Badge>
-        )}
-      </TouchableOpacity>
+          {unreadCount > 0 && (
+            <Badge style={styles.badge}>{unreadCount}</Badge>
+          )}
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
@@ -153,13 +157,13 @@ export default function ChatThreadListScreen() {
       >
         {item.photoUrl ? (
           <Avatar.Image
-            size={48}
+            size={scale(48)}
             source={{ uri: item.photoUrl }}
             style={styles.avatar}
           />
         ) : (
           <Avatar.Text
-            size={48}
+            size={scale(48)}
             label={getInitials(fullName)}
             style={styles.avatar}
             labelStyle={styles.avatarLabel}
@@ -171,9 +175,9 @@ export default function ChatThreadListScreen() {
               {fullName}
             </Text>
             {isCreating ? (
-              <ActivityIndicator size="small" color="#15803d" />
+              <ActivityIndicator size="small" color="#2563eb" />
             ) : (
-              <MaterialCommunityIcons name="chat-plus-outline" size={20} color="#15803d" />
+              <MaterialCommunityIcons name="chat-plus-outline" size={scale(20)} color="#2563eb" />
             )}
           </View>
           <Text style={styles.newThreadSubtitle}>Click to start chat</Text>
@@ -188,7 +192,7 @@ export default function ChatThreadListScreen() {
         options={{
           headerShown: true,
           title: 'Messages',
-          headerTintColor: '#15803d',
+          headerTintColor: '#2563eb',
         }}
       />
       <View style={styles.container}>
@@ -201,7 +205,7 @@ export default function ChatThreadListScreen() {
         />
         {loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#15803d" />
+            <ActivityIndicator size="large" color="#2563eb" />
             <Text style={styles.loadingText}>Loading chats...</Text>
           </View>
         ) : (
@@ -214,17 +218,17 @@ export default function ChatThreadListScreen() {
               filteredTuteesWithoutThread.length > 0 ? (
                 <View>
                   <Text style={styles.sectionHeader}>Start a new conversation</Text>
-                  {filteredTuteesWithoutThread.map((tutee) => (
-                    <View key={tutee.id}>
+                  {filteredTuteesWithoutThread.map((tutee, index) => (
+                    <Animated.View key={tutee.id} entering={FadeInDown.delay(index * 40).duration(200)}>
                       {renderTuteeItem({ item: tutee })}
-                    </View>
+                    </Animated.View>
                   ))}
                 </View>
               ) : null
             }
             ListEmptyComponent={
               <View style={styles.centered}>
-                <MaterialCommunityIcons name="chat-outline" size={56} color="#d1d5db" />
+                <MaterialCommunityIcons name="chat-outline" size={scale(56)} color="#d1d5db" />
                 <Text style={styles.emptyTitle}>No messages yet</Text>
                 <Text style={styles.emptySubtitle}>
                   {user?.role === 'parent'
@@ -247,31 +251,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   searchbar: {
-    margin: 12,
-    borderRadius: 12,
+    margin: scale(12),
+    borderRadius: scale(12),
     elevation: 0,
     backgroundColor: '#f3f4f6',
   },
   searchbarInput: {
-    fontSize: 15,
+    fontSize: moderateScale(15),
   },
   threadItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: verticalScale(12),
+    paddingHorizontal: scale(16),
   },
   avatar: {
-    backgroundColor: '#15803d',
+    backgroundColor: '#2563eb',
   },
   avatarLabel: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: moderateScale(16),
     fontWeight: '600',
   },
   threadContent: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: scale(12),
   },
   threadHeader: {
     flexDirection: 'row',
@@ -279,74 +283,74 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   partnerName: {
-    fontSize: 16,
+    fontSize: moderateScale(16),
     fontWeight: '700',
     color: '#111827',
     flex: 1,
   },
   timestamp: {
-    fontSize: 12,
+    fontSize: moderateScale(12),
     color: '#9ca3af',
-    marginLeft: 8,
+    marginLeft: scale(8),
   },
   studentLabel: {
-    fontSize: 11,
+    fontSize: moderateScale(11),
     fontWeight: '700',
-    color: '#15803d',
+    color: '#2563eb',
     textTransform: 'uppercase',
-    marginTop: 2,
+    marginTop: verticalScale(2),
   },
   lastMessage: {
-    fontSize: 13,
+    fontSize: moderateScale(13),
     color: '#6b7280',
-    marginTop: 2,
+    marginTop: verticalScale(2),
   },
   badge: {
-    backgroundColor: '#15803d',
-    marginLeft: 8,
+    backgroundColor: '#2563eb',
+    marginLeft: scale(8),
     alignSelf: 'center',
   },
   sectionHeader: {
-    fontSize: 12,
+    fontSize: moderateScale(12),
     fontWeight: '700',
     color: '#6b7280',
     textTransform: 'uppercase',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 6,
+    paddingHorizontal: scale(16),
+    paddingTop: verticalScale(12),
+    paddingBottom: verticalScale(6),
   },
   newThreadSubtitle: {
-    fontSize: 12,
-    color: '#15803d',
-    marginTop: 2,
+    fontSize: moderateScale(12),
+    color: '#2563eb',
+    marginTop: verticalScale(2),
   },
   separator: {
-    height: 1,
+    height: verticalScale(1),
     backgroundColor: '#f3f4f6',
-    marginLeft: 76,
+    marginLeft: scale(76),
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    padding: scale(32),
   },
   loadingText: {
-    fontSize: 14,
+    fontSize: moderateScale(14),
     color: '#6b7280',
-    marginTop: 12,
+    marginTop: verticalScale(12),
   },
   emptyTitle: {
-    fontSize: 17,
+    fontSize: moderateScale(17),
     fontWeight: '700',
     color: '#374151',
-    marginTop: 14,
+    marginTop: verticalScale(14),
   },
   emptySubtitle: {
-    fontSize: 13,
+    fontSize: moderateScale(13),
     color: '#9ca3af',
     textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 18,
+    marginTop: verticalScale(6),
+    lineHeight: verticalScale(18),
   },
 });

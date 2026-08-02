@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import { Text, TextInput, Button, Snackbar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -43,9 +43,7 @@ export default function LoginScreen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
-          <View style={styles.iconContainer}>
-            <MaterialCommunityIcons name="school" size={36} color="#fff" />
-          </View>
+          <Image source={require('../../assets/logo.jpg')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>Tutor Track</Text>
           <Text style={styles.subtitle}>Parent Portal</Text>
 
@@ -96,7 +94,7 @@ export default function LoginScreen() {
               disabled={isLoading}
               style={styles.loginButton}
               labelStyle={styles.loginButtonText}
-              buttonColor="#15803d"
+              buttonColor="#2563eb"
             >
               Sign In
             </Button>
@@ -104,7 +102,7 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.footer}>
-            <MaterialCommunityIcons name="school" size={14} color="#15803d" />
+          <MaterialCommunityIcons name="school" size={14} color="#2563eb" />
           <Text style={styles.footerText}>Tutor Track — Secure Parent Portal</Text>
         </View>
       </ScrollView>
@@ -124,7 +122,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#eff6ff',
   },
   scrollContent: {
     flexGrow: 1,
@@ -141,14 +139,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
   },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    backgroundColor: '#15803d',
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logo: {
+    width: 140,
+    height: 140,
     alignSelf: 'center',
+    borderRadius: 24,
     marginBottom: 16,
   },
   title: {
@@ -179,7 +174,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   forgotText: {
-    color: '#15803d',
+    color: '#2563eb',
     fontSize: 13,
     fontWeight: '600',
   },

@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Card, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Announcement } from '../types/announcement';
+import { ScaleOnPress } from './ScaleOnPress';
 
 interface AnnouncementCardProps {
   announcement: Announcement;
@@ -22,8 +23,8 @@ export const AnnouncementCard = ({ announcement, onPress }: AnnouncementCardProp
     : new Date(announcement.createdAt).toLocaleDateString();
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7} disabled={!onPress}>
-      <Card style={styles.card}>
+    <ScaleOnPress onPress={onPress} disabled={!onPress} style={styles.card}>
+      <Card>
         <Card.Content>
         <View style={styles.header}>
           <View style={styles.titleRow}>
@@ -37,7 +38,7 @@ export const AnnouncementCard = ({ announcement, onPress }: AnnouncementCardProp
         <Text style={styles.date}>Posted on {date}</Text>
       </Card.Content>
     </Card>
-    </TouchableOpacity>
+    </ScaleOnPress>
   );
 };
 

@@ -92,7 +92,7 @@ export default function ScheduleScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#15803d" />
+        <ActivityIndicator size="large" color="#2563eb" />
       </View>
     );
   }
@@ -145,12 +145,12 @@ export default function ScheduleScreen() {
       <Stack.Screen options={{
         headerShown: true,
         title: '',
-        headerTintColor: '#15803d',
+        headerTintColor: '#2563eb',
         headerShadowVisible: false,
         headerStyle: { backgroundColor: '#f9fafb' },
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-            <MaterialCommunityIcons name="chevron-left" size={28} color="#15803d" />
+            <MaterialCommunityIcons name="chevron-left" size={28} color="#2563eb" />
           </TouchableOpacity>
         ),
       }} />
@@ -175,7 +175,7 @@ export default function ScheduleScreen() {
                     <View style={styles.divider} />
                     <View style={styles.detailsColumn}>
                       <View style={styles.timeRow}>
-                        <MaterialCommunityIcons name="clock-outline" size={14} color="#15803d" />
+                        <MaterialCommunityIcons name="clock-outline" size={14} color="#2563eb" />
                         <Text style={styles.timeText}>
                           {formatTime12h(session.startTime)}{session.endTime ? ` - ${formatTime12h(session.endTime)}` : ''}
                         </Text>
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   weekTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#15803d',
+    color: '#2563eb',
     marginBottom: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   dayLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#15803d',
+    color: '#2563eb',
   },
   dateLabel: {
     fontSize: 18,

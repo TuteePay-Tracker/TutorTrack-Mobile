@@ -334,7 +334,7 @@ export default function PaymentProofScreen() {
           title: '',
           headerTintColor: '#ffffff',
           headerShadowVisible: false,
-          headerStyle: { backgroundColor: '#15803d' },
+          headerStyle: { backgroundColor: '#2563eb' },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
               <MaterialCommunityIcons name="chevron-left" size={28} color="#ffffff" />
@@ -396,7 +396,7 @@ export default function PaymentProofScreen() {
           {preselectedTuteeId && selectedTutee && (
             <Card style={styles.selectedChildCard}>
               <Card.Content style={styles.selectedChildContent}>
-                <MaterialCommunityIcons name="account-outline" size={20} color="#15803d" />
+                <MaterialCommunityIcons name="account-outline" size={20} color="#2563eb" />
                 <View style={styles.selectedChildInfo}>
                   <Text style={styles.selectedChildName}>
                     {selectedTutee.firstName} {selectedTutee.surname}
@@ -496,7 +496,7 @@ export default function PaymentProofScreen() {
           {/* Payment Method Selector */}
           {loadingPaymentMethods && (
             <View style={styles.methodsLoading}>
-              <ActivityIndicator size="small" color="#15803d" />
+              <ActivityIndicator size="small" color="#2563eb" />
               <Text style={styles.methodsLoadingText}>Loading payment methods...</Text>
             </View>
           )}
@@ -517,7 +517,7 @@ export default function PaymentProofScreen() {
                       <MaterialCommunityIcons
                         name={METHOD_ICONS[m] as any}
                         size={20}
-                        color={isSelected ? '#15803d' : '#6b7280'}
+                        color={isSelected ? '#2563eb' : '#6b7280'}
                       />
                       <Text style={[styles.methodText, isSelected && styles.methodTextSelected]}>
                         {METHOD_LABELS[m]}
@@ -550,7 +550,7 @@ export default function PaymentProofScreen() {
                   <MaterialCommunityIcons
                     name={METHOD_ICONS[selectedMethod as MethodKey] as any}
                     size={18}
-                    color="#15803d"
+                    color="#2563eb"
                   />
                   <Text style={styles.detailsTitle}>
                     {METHOD_LABELS[selectedMethod as MethodKey]} Payment Details
@@ -619,6 +619,20 @@ export default function PaymentProofScreen() {
               </Card.Content>
             </Card>
           )}
+
+          {/* Amount Input */}
+          <Text style={styles.sectionLabel}>Amount Sent (₱)</Text>
+          <TextInput
+            mode="outlined"
+            value={payAmount}
+            onChangeText={setPayAmount}
+            keyboardType="decimal-pad"
+            placeholder="Enter amount"
+            outlineColor="#e5e7eb"
+            activeOutlineColor="#2563eb"
+            style={styles.input}
+          />
+
           {/* Screenshot Upload */}
           <Text style={styles.sectionLabel}>Upload Receipt / Proof of Payment</Text>
           <TouchableOpacity
@@ -635,7 +649,7 @@ export default function PaymentProofScreen() {
           >
             {isUploading ? (
               <View style={styles.uploadLoading}>
-                <ActivityIndicator size="small" color="#15803d" />
+                <ActivityIndicator size="small" color="#2563eb" />
                 <Text style={styles.uploadLoadingText}>Uploading...</Text>
               </View>
             ) : proofUri ? (
@@ -670,7 +684,7 @@ export default function PaymentProofScreen() {
             onChangeText={setNotes}
             placeholder="e.g. Reference No. 123456"
             outlineColor="#e5e7eb"
-            activeOutlineColor="#15803d"
+            activeOutlineColor="#2563eb"
             style={styles.input}
           />
 
@@ -691,7 +705,7 @@ export default function PaymentProofScreen() {
               loading={isSubmitting}
               style={styles.submitButton}
               labelStyle={styles.submitButtonText}
-              buttonColor="#15803d"
+              buttonColor="#2563eb"
             >
               Submit Payment Proof
             </Button>
@@ -708,7 +722,7 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
 
   headerBanner: {
-    backgroundColor: '#15803d',
+    backgroundColor: '#2563eb',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
@@ -739,19 +753,19 @@ const styles = StyleSheet.create({
     minWidth: 120,
   },
   childChipSelected: {
-    borderColor: '#15803d',
-    backgroundColor: '#f0fdf4',
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
   },
   childChipText: { fontSize: 13, fontWeight: '700', color: '#374151' },
-  childChipTextSelected: { color: '#15803d' },
+  childChipTextSelected: { color: '#2563eb' },
   childChipBalance: { fontSize: 11, fontWeight: '600', color: '#9ca3af', marginTop: 2 },
   childChipBalanceSelected: { color: '#059669' },
 
   selectedChildCard: {
     borderRadius: 12,
     marginBottom: 20,
-    backgroundColor: '#f0fdf4',
-    borderColor: '#15803d',
+    backgroundColor: '#eff6ff',
+    borderColor: '#2563eb',
     borderWidth: 1,
   },
   selectedChildContent: {
@@ -763,7 +777,7 @@ const styles = StyleSheet.create({
   selectedChildName: { fontSize: 15, fontWeight: '700', color: '#111827' },
 
   balanceCard: {
-    backgroundColor: '#15803d',
+    backgroundColor: '#2563eb',
     borderRadius: 12,
     marginBottom: 20,
   },
@@ -795,11 +809,11 @@ const styles = StyleSheet.create({
     minWidth: '47%',
   },
   methodCardSelected: {
-    borderColor: '#15803d',
-    backgroundColor: '#f0fdf4',
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
   },
   methodText: { fontSize: 13, fontWeight: '700', color: '#6b7280' },
-  methodTextSelected: { color: '#15803d' },
+  methodTextSelected: { color: '#2563eb' },
 
   methodsLoading: {
     flexDirection: 'row',
@@ -979,7 +993,7 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 24,
   },
-  uploadLoadingText: { fontSize: 13, fontWeight: '600', color: '#15803d' },
+  uploadLoadingText: { fontSize: 13, fontWeight: '600', color: '#2563eb' },
   previewContainer: {
     width: '100%',
     height: 200,
@@ -994,7 +1008,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 8,
     right: 8,
-    backgroundColor: '#15803d',
+    backgroundColor: '#2563eb',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,

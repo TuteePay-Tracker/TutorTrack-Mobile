@@ -34,7 +34,7 @@ export default function AssessmentsScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#15803d" />
+        <ActivityIndicator size="large" color="#2563eb" />
       </View>
     );
   }
@@ -44,12 +44,12 @@ export default function AssessmentsScreen() {
       <Stack.Screen options={{
         headerShown: true,
         title: '',
-        headerTintColor: '#15803d',
+        headerTintColor: '#2563eb',
         headerShadowVisible: false,
         headerStyle: { backgroundColor: '#f9fafb' },
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-            <MaterialCommunityIcons name="chevron-left" size={28} color="#15803d" />
+            <MaterialCommunityIcons name="chevron-left" size={28} color="#2563eb" />
           </TouchableOpacity>
         ),
       }} />
@@ -105,8 +105,8 @@ const styles = StyleSheet.create({
   cardLeft: { flex: 1 },
   subject: { fontSize: 16, fontWeight: '700', color: '#111827' },
   childName: { fontSize: 13, color: '#6b7280', marginTop: 2 },
-  scoreBadge: { backgroundColor: '#dcfce7', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  score: { fontSize: 16, fontWeight: '800', color: '#15803d' },
+  scoreBadge: { backgroundColor: '#dbeafe', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  score: { fontSize: 16, fontWeight: '800', color: '#2563eb' },
   topic: { fontSize: 13, color: '#6b7280', marginTop: 8 },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   date: { fontSize: 12, color: '#9ca3af' },
