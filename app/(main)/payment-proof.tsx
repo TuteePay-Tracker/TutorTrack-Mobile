@@ -22,11 +22,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useTutees } from '../../src/hooks/useTutees';
-import { paymentService } from '../../src/services/paymentService';
+import { paymentService, MonthlyRecord } from '../../src/services/paymentService';
+import { Payment, PaymentMethod } from '../../src/types/payment';
 import { db } from '../../src/services/firebaseConfig';
 import { uploadToCloudinary } from '../../src/services/cloudinaryService';
 import { formatCurrency } from '../../src/utils/formatCurrency';
-import { PaymentMethod } from '../../src/types/payment';
 import { User } from '../../src/types/user';
 
 type MethodKey = 'gcash' | 'maya' | 'bank' | 'other';
@@ -45,6 +45,42 @@ const METHOD_ICONS: Record<MethodKey, string> = {
   other: 'dots-horizontal',
 };
 
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const formatMonthLabel = (month: string): string => {
+  const [year, monthNum] = month.split('-');
+  const monthIdx = parseInt(monthNum, 10) - 1;
+  const name = MONTH_NAMES[monthIdx] || month;
+  return `${name} ${year}`;
+};
+
+const normalizeImageUrl = (url?: string): string => {
+  if (!url) return '';
+  let normalized = url.trim();
+  if (normalized.startsWith('//')) {
+    normalized = `https:${normalized}`;
+  } else if (!/^https?:\/\//i.test(normalized)) {
+    normalized = `https://${normalized}`;
+  }
+  if (normalized.includes('cloudinary.com')) {
+    normalized = normalized.replace('/image/upload/', '/image/upload/f_png,q_auto/');
+  }
+  return normalized;
+};
+
 export default function PaymentProofScreen() {
   const { tuteeId: preselectedTuteeId } = useLocalSearchParams<{ tuteeId?: string }>();
   const { user } = useAuth();
@@ -61,27 +97,31 @@ export default function PaymentProofScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tutorPaymentMethods, setTutorPaymentMethods] = useState<User['paymentMethods']>({});
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(true);
+  const [monthRecords, setMonthRecords] = useState<MonthlyRecord[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [qrError, setQrError] = useState(false);
 
   useEffect(() => {
     let mounted = true;
     const loadPaymentMethods = async () => {
       setLoadingPaymentMethods(true);
       try {
+        const tutorId = user?.role === 'tutor' ? user.id : user?.createdByTutorId;
         if (user?.role === 'tutor') {
           if (mounted) setTutorPaymentMethods(user.paymentMethods || {});
-          return;
         }
-        if (!user?.createdByTutorId) {
+        if (!tutorId) {
           if (mounted) setTutorPaymentMethods({});
           return;
         }
-        const tutorDoc = await getDoc(doc(db, 'users', user.createdByTutorId));
+        const tutorDoc = await getDoc(doc(db, 'users', tutorId));
         if (mounted) {
           setTutorPaymentMethods(tutorDoc.exists() ? tutorDoc.data().paymentMethods || {} : {});
         }
       } catch (err) {
         console.error('Error fetching tutor payment details:', err);
-        if (mounted) setTutorPaymentMethods({});
       } finally {
         if (mounted) setLoadingPaymentMethods(false);
       }
@@ -90,7 +130,7 @@ export default function PaymentProofScreen() {
     return () => {
       mounted = false;
     };
-  }, [user?.role, user?.createdByTutorId, user?.paymentMethods]);
+  }, [user?.role, user?.createdByTutorId, user?.id, user?.paymentMethods]);
 
   const paymentMethods = tutorPaymentMethods;
   const enabledMethods: MethodKey[] = (['gcash', 'maya', 'bank', 'other'] as MethodKey[]).filter(
@@ -109,10 +149,56 @@ export default function PaymentProofScreen() {
   }, [enabledMethods]);
 
   useEffect(() => {
-    if (balance > 0 && !payAmount) {
+    if (!selectedTuteeId || !user?.createdByTutorId) {
+      setMonthRecords([]);
+      setRecordsLoading(false);
+      return;
+    }
+
+    const tutorId = user.createdByTutorId;
+    setRecordsLoading(true);
+    setSelectedMonth('');
+    setQrError(false);
+
+    const unsubRecords = paymentService.subscribeRecordsByTutee(tutorId, selectedTuteeId, (records) => {
+      setMonthRecords(records);
+      setRecordsLoading(false);
+    });
+    const unsubPayments = paymentService.subscribePaymentsByTutee(tutorId, selectedTuteeId, (pays) => {
+      setPayments(pays);
+    });
+
+    return () => {
+      unsubRecords();
+      unsubPayments();
+    };
+  }, [selectedTuteeId, user?.createdByTutorId]);
+
+  const unpaidRecords = monthRecords.filter((r) => r.totalBalance > 0);
+
+  useEffect(() => {
+    if (unpaidRecords.length === 0) {
+      setSelectedMonth('');
+      return;
+    }
+    const stillUnpaid = unpaidRecords.find((r) => r.month === selectedMonth);
+    if (!stillUnpaid) {
+      const first = unpaidRecords[0];
+      setSelectedMonth(first.month);
+      setPayAmount(first.totalBalance.toString());
+    }
+  }, [monthRecords]);
+
+  const handleSelectMonth = (record: MonthlyRecord) => {
+    setSelectedMonth(record.month);
+    setPayAmount(record.totalBalance.toString());
+  };
+
+  useEffect(() => {
+    if (balance > 0 && !payAmount && unpaidRecords.length === 0) {
       setPayAmount(balance.toString());
     }
-  }, [balance]);
+  }, [balance, unpaidRecords.length, payAmount]);
 
   const activeMethodConfig = selectedMethod ? paymentMethods?.[selectedMethod] : null;
 
@@ -199,11 +285,18 @@ export default function PaymentProofScreen() {
     }
     if (!user?.createdByTutorId) return;
 
+    if (unpaidRecords.length > 0 && !selectedMonth) {
+      Alert.alert('Error', 'Please select a billing month.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const tuteeName = `${selectedTutee.firstName} ${selectedTutee.surname}`;
       const now = new Date();
-      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const month = selectedMonth || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const selectedRecord = monthRecords.find((r) => r.month === month);
+      const referenceBalance = selectedRecord?.totalBalance ?? balance;
 
       await paymentService.createPaymentProof(
         {
@@ -217,7 +310,7 @@ export default function PaymentProofScreen() {
           paymentDate: now.toISOString().split('T')[0],
           notes: notes || undefined,
           proofUrl,
-          coverageType: amountVal >= balance ? 'full' : 'partial',
+          coverageType: amountVal >= referenceBalance ? 'full' : 'partial',
           month,
         },
         user.createdByTutorId
@@ -280,6 +373,8 @@ export default function PaymentProofScreen() {
                         setPayAmount('');
                         setProofUri(null);
                         setProofUrl('');
+                        setSelectedMonth('');
+                        setQrError(false);
                       }}
                       style={[styles.childChip, isSelected && styles.childChipSelected]}
                       activeOpacity={0.7}
@@ -322,6 +417,80 @@ export default function PaymentProofScreen() {
                 </View>
               </Card.Content>
             </Card>
+          )}
+
+          {/* Billing Month Selector */}
+          {selectedTutee && (
+            <>
+              <Text style={styles.sectionLabel}>Billing Month</Text>
+              {recordsLoading ? (
+                <View style={styles.monthsLoading}>
+                  <ActivityIndicator size="small" color="#15803d" />
+                  <Text style={styles.monthsLoadingText}>Loading billing months...</Text>
+                </View>
+              ) : unpaidRecords.length === 0 ? (
+                <Card style={styles.settledCard}>
+                  <Card.Content style={styles.settledContent}>
+                    <MaterialCommunityIcons name="check-circle-outline" size={28} color="#059669" />
+                    <View style={styles.settledInfo}>
+                      <Text style={styles.settledTitle}>All invoices settled!</Text>
+                      <Text style={styles.settledText}>No unpaid billing months for this child.</Text>
+                    </View>
+                  </Card.Content>
+                </Card>
+              ) : (
+                <View style={styles.monthList}>
+                  {unpaidRecords.map((record) => {
+                    const pendingPayment = payments.find((p) => p.month === record.month && p.status === 'pending');
+                    const rejectedPayment = payments.find((p) => p.month === record.month && p.status === 'rejected');
+                    const isSelected = record.month === selectedMonth;
+                    return (
+                      <TouchableOpacity
+                        key={record.id}
+                        onPress={() => handleSelectMonth(record)}
+                        style={[styles.monthCard, isSelected && styles.monthCardSelected]}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.monthCardLeft}>
+                          <Text style={[styles.monthCardName, isSelected && styles.monthCardNameSelected]}>
+                            {formatMonthLabel(record.month)}
+                          </Text>
+                          {pendingPayment ? (
+                            <View style={[styles.monthBadge, { backgroundColor: '#fffbeb' }]}>
+                              <Text style={[styles.monthBadgeText, { color: '#b45309' }]}>Verification Pending</Text>
+                            </View>
+                          ) : rejectedPayment ? (
+                            <View style={[styles.monthBadge, { backgroundColor: '#fef2f2' }]}>
+                              <Text style={[styles.monthBadgeText, { color: '#dc2626' }]}>Rejected</Text>
+                            </View>
+                          ) : (
+                            <View style={[styles.monthBadge, { backgroundColor: '#f3f4f6' }]}>
+                              <Text style={[styles.monthBadgeText, { color: '#6b7280' }]}>Unpaid Balance</Text>
+                            </View>
+                          )}
+                          {rejectedPayment && (
+                            <Text style={styles.monthRejectedNote}>
+                              {rejectedPayment.notes?.split(' | Rejected: ')[1] ||
+                                rejectedPayment.notes ||
+                                'Incorrect payment details'}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.monthCardRight}>
+                          <Text style={styles.monthCardBalanceLabel}>Balance Due</Text>
+                          <Text style={[styles.monthCardBalance, isSelected && styles.monthCardBalanceSelected]}>
+                            {formatCurrency(record.totalBalance)}
+                          </Text>
+                        </View>
+                        {isSelected && (
+                          <MaterialCommunityIcons name="check-circle" size={20} color="#15803d" style={styles.monthCheck} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </>
           )}
 
           {/* Payment Method Selector */}
@@ -415,33 +584,41 @@ export default function PaymentProofScreen() {
                   )}
                 </View>
 
-                {activeMethodConfig.qrUrl && (
+                {activeMethodConfig.qrUrl ? (
                   <View style={styles.qrContainer}>
-                    <Image
-                      source={{ uri: activeMethodConfig.qrUrl }}
-                      style={styles.qrImage}
-                      resizeMode="contain"
-                    />
-                    <Text style={styles.qrLabel}>Scan to Pay</Text>
+                    {qrError ? (
+                      <View style={styles.qrFallback}>
+                        <MaterialCommunityIcons name="qrcode-scan" size={40} color="#9ca3af" />
+                        <Text style={styles.qrFallbackText}>Unable to load QR code</Text>
+                        <TouchableOpacity
+                          onPress={() => setQrError(false)}
+                          style={styles.qrRetry}
+                          activeOpacity={0.7}
+                        >
+                          <MaterialCommunityIcons name="refresh" size={16} color="#15803d" />
+                          <Text style={styles.qrRetryText}>Retry</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <>
+                        <Image
+                          key={normalizeImageUrl(activeMethodConfig.qrUrl)}
+                          source={{ uri: normalizeImageUrl(activeMethodConfig.qrUrl) }}
+                          style={styles.qrImage}
+                          resizeMode="contain"
+                          onError={() => setQrError(true)}
+                          onLoad={() => setQrError(false)}
+                        />
+                        <Text style={styles.qrLabel}>Scan to Pay</Text>
+                      </>
+                    )}
                   </View>
+                ) : (
+                  <Text style={styles.qrMissing}>No QR code uploaded by tutor</Text>
                 )}
               </Card.Content>
             </Card>
           )}
-
-          {/* Amount Input */}
-          <Text style={styles.sectionLabel}>Amount Sent (₱)</Text>
-          <TextInput
-            mode="outlined"
-            value={payAmount}
-            onChangeText={setPayAmount}
-            keyboardType="decimal-pad"
-            placeholder="Enter amount"
-            outlineColor="#e5e7eb"
-            activeOutlineColor="#15803d"
-            style={styles.input}
-          />
-
           {/* Screenshot Upload */}
           <Text style={styles.sectionLabel}>Upload Receipt / Proof of Payment</Text>
           <TouchableOpacity
@@ -686,6 +863,92 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   qrLabel: { fontSize: 11, fontWeight: '600', color: '#9ca3af' },
+  qrFallback: {
+    width: 180,
+    height: 180,
+    borderRadius: 12,
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 12,
+  },
+  qrFallbackText: { fontSize: 12, fontWeight: '600', color: '#9ca3af' },
+  qrRetry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#15803d',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  qrRetryText: { fontSize: 12, fontWeight: '700', color: '#15803d' },
+  qrMissing: { fontSize: 11, fontWeight: '600', color: '#9ca3af', marginTop: 12, textAlign: 'center' },
+
+  monthsLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    marginBottom: 16,
+  },
+  monthsLoadingText: { fontSize: 13, fontWeight: '600', color: '#6b7280' },
+  settledCard: {
+    borderRadius: 12,
+    marginBottom: 20,
+    backgroundColor: '#f0fdf4',
+    borderColor: '#bbf7d0',
+    borderWidth: 1,
+  },
+  settledContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  settledInfo: { flex: 1 },
+  settledTitle: { fontSize: 14, fontWeight: '800', color: '#15803d' },
+  settledText: { fontSize: 12, color: '#6b7280', marginTop: 2 },
+
+  monthList: { gap: 8, marginBottom: 20 },
+  monthCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    padding: 14,
+    position: 'relative',
+  },
+  monthCardSelected: {
+    borderColor: '#15803d',
+    backgroundColor: '#f0fdf4',
+  },
+  monthCardLeft: { flex: 1, gap: 6 },
+  monthCardName: { fontSize: 14, fontWeight: '700', color: '#111827' },
+  monthCardNameSelected: { color: '#15803d' },
+  monthBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  monthBadgeText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
+  monthRejectedNote: { fontSize: 11, color: '#dc2626', fontStyle: 'italic' },
+  monthCardRight: { alignItems: 'flex-end', marginRight: 26 },
+  monthCardBalanceLabel: { fontSize: 10, fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase' },
+  monthCardBalance: { fontSize: 15, fontWeight: '800', color: '#111827', marginTop: 2 },
+  monthCardBalanceSelected: { color: '#15803d' },
+  monthCheck: { position: 'absolute', right: 12, top: 12 },
 
   input: {
     backgroundColor: '#ffffff',

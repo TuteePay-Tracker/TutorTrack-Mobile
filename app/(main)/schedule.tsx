@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Text, Card, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useTabBarHeight } from '../../src/hooks/useTabBarHeight';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useTutees } from '../../src/hooks/useTutees';
@@ -88,7 +88,6 @@ export default function ScheduleScreen() {
   const { tutees, isLoading } = useTutees();
   const tabBarHeight = useTabBarHeight();
   const router = useRouter();
-  const { from } = useLocalSearchParams<{ from?: string }>();
 
   if (isLoading) {
     return (
@@ -150,7 +149,7 @@ export default function ScheduleScreen() {
         headerShadowVisible: false,
         headerStyle: { backgroundColor: '#f9fafb' },
         headerLeft: () => (
-          <TouchableOpacity onPress={() => from ? router.replace(`/(main)/${from}`) : router.back()} style={{ marginLeft: 4 }}>
+          <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
             <MaterialCommunityIcons name="chevron-left" size={28} color="#15803d" />
           </TouchableOpacity>
         ),

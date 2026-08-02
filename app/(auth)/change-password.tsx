@@ -109,7 +109,7 @@ export default function ChangePasswordScreen() {
 
       <View style={styles.footer}>
         <MaterialCommunityIcons name="school" size={14} color="#15803d" />
-        <Text style={styles.footerText}>TuteePay Tracker — Secure Parent Portal</Text>
+        <Text style={styles.footerText}>Tutor Track — Secure Parent Portal</Text>
       </View>
 
       <Snackbar

@@ -4,9 +4,9 @@ import { Text, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../../../src/hooks/useAuth';
-import { announcementService } from '../../../src/services/announcementService';
-import { Announcement } from '../../../src/types/announcement';
+import { useAuth } from '../../../../src/hooks/useAuth';
+import { announcementService } from '../../../../src/services/announcementService';
+import { Announcement } from '../../../../src/types/announcement';
 
 const priorityConfig = {
   high: { bg: '#fef2f2', border: '#fecaca', text: '#dc2626', label: 'HIGH' },

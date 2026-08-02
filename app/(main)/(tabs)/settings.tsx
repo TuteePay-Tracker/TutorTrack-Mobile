@@ -4,8 +4,8 @@ import { Text, Card, TextInput, Button, Avatar, Divider, Switch } from 'react-na
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../../src/hooks/useAuth';
-import { useTabBarHeight } from '../../src/hooks/useTabBarHeight';
+import { useAuth } from '../../../src/hooks/useAuth';
+import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth();

@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "TuteePay Tracker",
-    "slug": "tuteepay-tracker",
+    "name": "Tutor Track",
+    "slug": "tutor-track",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "scheme": "tuteepay-tracker",
+    "scheme": "tutor-track",
     "splash": {
       "backgroundColor": "#15803d"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tuteepay.tracker"
+      "bundleIdentifier": "com.tutortrack.app"
     },
     "android": {
       "newArchEnabled": false,
@@ -22,7 +22,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.tuteepay.tracker"
+      "package": "com.tutortrack.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"

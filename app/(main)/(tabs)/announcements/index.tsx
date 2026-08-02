@@ -4,12 +4,12 @@ import { Text, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../../src/hooks/useAuth';
-import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
-import { announcementService } from '../../../src/services/announcementService';
-import { Announcement } from '../../../src/types/announcement';
-import { AnnouncementCard } from '../../../src/components/AnnouncementCard';
-import { EmptyState } from '../../../src/components/EmptyState';
+import { useAuth } from '../../../../src/hooks/useAuth';
+import { useTabBarHeight } from '../../../../src/hooks/useTabBarHeight';
+import { announcementService } from '../../../../src/services/announcementService';
+import { Announcement } from '../../../../src/types/announcement';
+import { AnnouncementCard } from '../../../../src/components/AnnouncementCard';
+import { EmptyState } from '../../../../src/components/EmptyState';
 
 export default function AnnouncementsScreen() {
   const { user } = useAuth();

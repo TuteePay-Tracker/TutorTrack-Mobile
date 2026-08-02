@@ -2,15 +2,15 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../../src/hooks/useAuth';
-import { useTutees } from '../../src/hooks/useTutees';
-import { useTabBarHeight } from '../../src/hooks/useTabBarHeight';
-import { paymentService } from '../../src/services/paymentService';
-import { assessmentService } from '../../src/services/assessmentService';
-import { ChildCard } from '../../src/components/ChildCard';
-import { EmptyState } from '../../src/components/EmptyState';
+import { useAuth } from '../../../src/hooks/useAuth';
+import { useTutees } from '../../../src/hooks/useTutees';
+import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
+import { paymentService } from '../../../src/services/paymentService';
+import { assessmentService } from '../../../src/services/assessmentService';
+import { ChildCard } from '../../../src/components/ChildCard';
+import { EmptyState } from '../../../src/components/EmptyState';
 import { router } from 'expo-router';
-import { Tutee } from '../../src/types/tutee';
+import { Tutee } from '../../../src/types/tutee';
 
 export default function MyChildrenScreen() {
   const { user } = useAuth();

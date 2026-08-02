@@ -15,6 +15,21 @@ export interface PaymentTransaction {
   createdAt: any;
 }
 
+export interface MonthlyRecord {
+  id: string;
+  tuteeId: string;
+  tuteeName: string;
+  parentId?: string | null;
+  tutorId?: string;
+  month: string;
+  dayPayments: Array<{ date: string; amountDue: number; amountPaid: number; status: string }>;
+  totalDue: number;
+  totalPaid: number;
+  totalBalance: number;
+  lastUpdated: string;
+  createdAt: string;
+}
+
 export const paymentService = {
   subscribeTransactionsByTutee(
     tutorId: string,
@@ -72,6 +87,37 @@ export const paymentService = {
       });
       callback({ presentCount: present, totalSessions: total });
     });
+  },
+
+  subscribeRecordsByTutee(
+    tutorId: string,
+    tuteeId: string,
+    callback: (records: MonthlyRecord[]) => void
+  ): () => void {
+    const recordsRef = collection(db, 'users', tutorId, 'paymentRecords');
+    const q = query(recordsRef, where('tuteeId', '==', tuteeId));
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const records = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            ...data,
+            lastUpdated:
+              data.lastUpdated?.toDate?.()?.toISOString() || new Date().toISOString(),
+            createdAt:
+              data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+          } as MonthlyRecord;
+        });
+        records.sort((a, b) => b.month.localeCompare(a.month));
+        callback(records);
+      },
+      (error) => {
+        console.error('Error in records subscription:', error);
+      }
+    );
   },
 
   async createPaymentProof(

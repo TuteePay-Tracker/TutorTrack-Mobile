@@ -1,6 +1,6 @@
-# TuteePay Tracker - Mobile
+# Tutor Track - Mobile
 
-A **parent portal** mobile app for the TuteePay tutoring management system. Built with Expo and React Native, it allows parents/guardians to monitor their children's tutoring sessions, payments, attendance, assessments, and communicate with the tutor — all in real time.
+A **parent portal** mobile app for the Tutor Track tutoring management system. Built with Expo and React Native, it allows parents/guardians to monitor their children's tutoring sessions, payments, attendance, assessments, and communicate with the tutor — all in real time.
 
 ## Tech Stack
 

@@ -3,12 +3,12 @@ import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { Text, Searchbar, Avatar, Badge, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
-import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
-import { useAuth } from '../../../src/hooks/useAuth';
-import { useTutees } from '../../../src/hooks/useTutees';
-import { chatService } from '../../../src/services/chatService';
-import { ChatThread } from '../../../src/types/chat';
-import { Tutee } from '../../../src/types/tutee';
+import { useTabBarHeight } from '../../../../src/hooks/useTabBarHeight';
+import { useAuth } from '../../../../src/hooks/useAuth';
+import { useTutees } from '../../../../src/hooks/useTutees';
+import { chatService } from '../../../../src/services/chatService';
+import { ChatThread } from '../../../../src/types/chat';
+import { Tutee } from '../../../../src/types/tutee';
 
 export default function ChatThreadListScreen() {
   const { user } = useAuth();

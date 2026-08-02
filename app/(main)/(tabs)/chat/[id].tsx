@@ -11,11 +11,11 @@ import { Text, IconButton, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../../../src/hooks/useAuth';
-import { chatService } from '../../../src/services/chatService';
-import { Message, ChatThread } from '../../../src/types/chat';
+import { useAuth } from '../../../../src/hooks/useAuth';
+import { chatService } from '../../../../src/services/chatService';
+import { Message, ChatThread } from '../../../../src/types/chat';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../../src/services/firebaseConfig';
+import { db } from '../../../../src/services/firebaseConfig';
 
 export default function ChatScreen() {
   const { id: chatId } = useLocalSearchParams<{ id: string }>();

@@ -12,18 +12,18 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../../src/hooks/useAuth';
-import { useTutees } from '../../src/hooks/useTutees';
-import { useTabBarHeight } from '../../src/hooks/useTabBarHeight';
-import { formatCurrency } from '../../src/utils/formatCurrency';
-import { formatTime12h } from '../../src/utils/formatTime';
-import { paymentService } from '../../src/services/paymentService';
-import { assessmentService } from '../../src/services/assessmentService';
-import { announcementService } from '../../src/services/announcementService';
-import { Announcement } from '../../src/types/announcement';
-import { Assessment } from '../../src/types/assessment';
-import { KpiCard } from '../../src/components/KpiCard';
-import { EmptyState } from '../../src/components/EmptyState';
+import { useAuth } from '../../../src/hooks/useAuth';
+import { useTutees } from '../../../src/hooks/useTutees';
+import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
+import { formatCurrency } from '../../../src/utils/formatCurrency';
+import { formatTime12h } from '../../../src/utils/formatTime';
+import { paymentService } from '../../../src/services/paymentService';
+import { assessmentService } from '../../../src/services/assessmentService';
+import { announcementService } from '../../../src/services/announcementService';
+import { Announcement } from '../../../src/types/announcement';
+import { Assessment } from '../../../src/types/assessment';
+import { KpiCard } from '../../../src/components/KpiCard';
+import { EmptyState } from '../../../src/components/EmptyState';
 
 const CHART_COLORS = ['#15803d', '#f59e0b', '#3b82f6'];
 

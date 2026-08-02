@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 
 const CLOUDINARY_CLOUD_NAME = 'dndekbare';
 const CLOUDINARY_UPLOAD_PRESET = 'tuteepay_uploads';
@@ -8,9 +8,8 @@ export const uploadToCloudinary = async (
   fileUri: string,
   folder: string = 'tuteepay'
 ): Promise<string> => {
-  const base64 = await FileSystem.readAsStringAsync(fileUri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+  const file = new File(fileUri);
+  const base64 = await file.base64();
 
   const formData = new FormData();
   formData.append('file', `data:image/jpeg;base64,${base64}`);

@@ -7,21 +7,29 @@ import { useAuth } from '../../src/hooks/useAuth';
 
 export default function LoginScreen() {
   const { login, isLoading } = useAuth();
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [snackVisible, setSnackVisible] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    if (!phone || !password) {
       setError('Please fill in all fields');
       setSnackVisible(true);
       return;
     }
 
+    const sanitizedPhone = phone.replace(/\D/g, '');
+    // Standard Philippine mobile number: 11 digits starting with 09
+    if (!/^09\d{9}$/.test(sanitizedPhone)) {
+      setError('Please enter a valid mobile number (e.g., 09XXXXXXXXX)');
+      setSnackVisible(true);
+      return;
+    }
+
     try {
-      await login(email.trim(), password);
+      await login(`${sanitizedPhone}@tuteepay.local`, password);
     } catch (err: any) {
       setError(err.message || 'Login failed');
       setSnackVisible(true);
@@ -38,21 +46,21 @@ export default function LoginScreen() {
           <View style={styles.iconContainer}>
             <MaterialCommunityIcons name="school" size={36} color="#fff" />
           </View>
-          <Text style={styles.title}>TuteePay Tracker</Text>
+          <Text style={styles.title}>Tutor Track</Text>
           <Text style={styles.subtitle}>Parent Portal</Text>
 
           <View style={styles.form}>
             <TextInput
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
+              label="Phone Number"
+              value={phone}
+              onChangeText={(text) => setPhone(text.replace(/[^\d]/g, ''))}
               mode="outlined"
-              keyboardType="email-address"
-              autoCapitalize="none"
+              keyboardType="phone-pad"
               autoCorrect={false}
+              maxLength={11}
               style={styles.input}
               outlineStyle={styles.inputOutline}
-              left={<TextInput.Icon icon="email-outline" />}
+              left={<TextInput.Icon icon="phone-outline" />}
             />
 
             <TextInput
@@ -97,7 +105,7 @@ export default function LoginScreen() {
 
         <View style={styles.footer}>
             <MaterialCommunityIcons name="school" size={14} color="#15803d" />
-          <Text style={styles.footerText}>TuteePay Tracker — Secure Parent Portal</Text>
+          <Text style={styles.footerText}>Tutor Track — Secure Parent Portal</Text>
         </View>
       </ScrollView>
 
