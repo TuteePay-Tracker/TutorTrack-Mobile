@@ -20,8 +20,8 @@ const theme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    primary: '#15803d',
-    primaryContainer: '#dcfce7',
+    primary: '#2563eb',
+    primaryContainer: '#dbeafe',
     secondary: '#059669',
     surface: '#ffffff',
     background: '#f9fafb',
@@ -68,7 +68,7 @@ function RootLayoutNav() {
       </Stack>
       {isLoading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#15803d" />
+          <ActivityIndicator size="large" color="#2563eb" />
         </View>
       )}
     </>

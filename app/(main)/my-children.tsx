@@ -11,6 +11,7 @@ import { ChildCard } from '../../src/components/ChildCard';
 import { EmptyState } from '../../src/components/EmptyState';
 import { router } from 'expo-router';
 import { Tutee } from '../../src/types/tutee';
+import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
 
 export default function MyChildrenScreen() {
   const { user } = useAuth();
@@ -125,7 +126,7 @@ export default function MyChildrenScreen() {
   if (tuteesLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#15803d" />
+        <ActivityIndicator size="large" color="#2563eb" />
         <Text style={styles.loadingText}>Loading children listing...</Text>
       </View>
     );
@@ -136,7 +137,7 @@ export default function MyChildrenScreen() {
       style={styles.container}
       contentContainerStyle={[styles.contentContainer, { paddingTop: insets.top + 16, paddingBottom: tabBarHeight }]}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={['#15803d']} />
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={['#2563eb']} />
       }
     >
       <View style={styles.header}>
@@ -151,7 +152,7 @@ export default function MyChildrenScreen() {
           message="Contact your tutor to link your children's accounts"
         />
       ) : (
-        tutees.map((tutee) => {
+        tutees.map((tutee, index) => {
           const metrics = metricsMap[tutee.id] || {
             attendanceRate: 100,
             averageScore: 0,
@@ -161,12 +162,17 @@ export default function MyChildrenScreen() {
           };
 
           return (
-            <ChildCard
+            <Animated.View
               key={tutee.id}
-              tutee={tutee}
-              metrics={metrics}
-              onPress={() => router.push(`/(main)/children/${tutee.id}`)}
-            />
+              entering={FadeInDown.delay(index * 50).duration(200)}
+              layout={LinearTransition.duration(200)}
+            >
+              <ChildCard
+                tutee={tutee}
+                metrics={metrics}
+                onPress={() => router.push(`/(main)/children/${tutee.id}`)}
+              />
+            </Animated.View>
           );
         })
       )}

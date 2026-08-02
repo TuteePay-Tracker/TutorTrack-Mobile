@@ -88,7 +88,7 @@ export default function LoginScreen() {
               disabled={isLoading}
               style={styles.loginButton}
               labelStyle={styles.loginButtonText}
-              buttonColor="#15803d"
+              buttonColor="#2563eb"
             >
               Sign In
             </Button>
@@ -96,7 +96,7 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.footer}>
-            <MaterialCommunityIcons name="school" size={14} color="#15803d" />
+            <MaterialCommunityIcons name="school" size={14} color="#2563eb" />
           <Text style={styles.footerText}>TuteePay Tracker — Secure Parent Portal</Text>
         </View>
       </ScrollView>
@@ -116,7 +116,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#eff6ff',
   },
   scrollContent: {
     flexGrow: 1,
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 64,
     height: 64,
-    backgroundColor: '#15803d',
+    backgroundColor: '#2563eb',
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   forgotText: {
-    color: '#15803d',
+    color: '#2563eb',
     fontSize: 13,
     fontWeight: '600',
   },

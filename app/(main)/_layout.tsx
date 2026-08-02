@@ -5,6 +5,7 @@ import { FloatingTabBar } from '../../src/components/FloatingTabBar';
 export default function MainLayout() {
   return (
     <Tabs
+      backBehavior="history"
       tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
         headerShown: false,

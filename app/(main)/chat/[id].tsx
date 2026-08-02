@@ -16,6 +16,8 @@ import { chatService } from '../../../src/services/chatService';
 import { Message, ChatThread } from '../../../src/types/chat';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../src/services/firebaseConfig';
+import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 export default function ChatScreen() {
   const { id: chatId } = useLocalSearchParams<{ id: string }>();
@@ -112,7 +114,10 @@ export default function ChatScreen() {
     const isSent = item.senderId === user?.id;
 
     return (
-      <View style={[styles.messageRow, isSent ? styles.sentRow : styles.receivedRow]}>
+      <Animated.View
+        entering={FadeInDown.duration(180)}
+        style={[styles.messageRow, isSent ? styles.sentRow : styles.receivedRow]}
+      >
         <View style={[styles.messageBubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
           {!isSent && item.senderName && (
             <Text style={styles.senderName}>{item.senderName}</Text>
@@ -127,20 +132,20 @@ export default function ChatScreen() {
             {isSent && (
               <MaterialCommunityIcons
                 name={item.status === 'seen' ? 'check-all' : 'check'}
-                size={14}
+                size={scale(14)}
                 color={item.status === 'seen' ? '#93c5fd' : 'rgba(255,255,255,0.6)'}
                 style={styles.readReceipt}
               />
             )}
           </View>
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <MaterialCommunityIcons name="chat-outline" size={56} color="#d1d5db" />
+      <MaterialCommunityIcons name="chat-outline" size={scale(56)} color="#d1d5db" />
       <Text style={styles.emptyTitle}>Wave hello!</Text>
       <Text style={styles.emptySubtitle}>Send a message to start the conversation.</Text>
     </View>
@@ -149,7 +154,7 @@ export default function ChatScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#15803d" />
+        <ActivityIndicator size="large" color="#2563eb" />
         <Text style={styles.loadingText}>Loading messages...</Text>
       </View>
     );
@@ -161,13 +166,13 @@ export default function ChatScreen() {
         options={{
           headerShown: true,
           title: getPartnerName(),
-          headerTintColor: '#15803d',
+          headerTintColor: '#2563eb',
         }}
       />
       <KeyboardAvoidingView
         style={styles.container}
         behavior="padding"
-        keyboardVerticalOffset={insets.top + 56}
+        keyboardVerticalOffset={insets.top + scale(56)}
       >
         <FlatList
           ref={flatListRef}
@@ -180,7 +185,7 @@ export default function ChatScreen() {
           ]}
           ListEmptyComponent={renderEmpty}
         />
-        <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
+        <View style={[styles.inputBar, { paddingBottom: insets.bottom + verticalScale(8) }]}>
           <TextInput
             style={styles.textInput}
             value={inputText}
@@ -192,8 +197,8 @@ export default function ChatScreen() {
           />
           <IconButton
             icon="send"
-            iconColor={inputText.trim() ? '#15803d' : '#d1d5db'}
-            size={24}
+            iconColor={inputText.trim() ? '#2563eb' : '#d1d5db'}
+            size={scale(24)}
             onPress={handleSend}
             disabled={!inputText.trim()}
             style={styles.sendButton}
@@ -216,20 +221,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: verticalScale(12),
     color: '#6b7280',
-    fontSize: 14,
+    fontSize: moderateScale(14),
   },
   messageList: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(12),
   },
   messageListEmpty: {
     flexGrow: 1,
     justifyContent: 'center',
   },
   messageRow: {
-    marginVertical: 3,
+    marginVertical: verticalScale(3),
   },
   sentRow: {
     alignItems: 'flex-end',
@@ -239,35 +244,35 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     maxWidth: '75%',
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: scale(18),
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(10),
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: verticalScale(1) },
     shadowOpacity: 0.08,
-    shadowRadius: 2,
+    shadowRadius: scale(2),
     elevation: 1,
   },
   sentBubble: {
-    backgroundColor: '#15803d',
-    borderTopRightRadius: 4,
+    backgroundColor: '#2563eb',
+    borderTopRightRadius: scale(4),
   },
   receivedBubble: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    borderTopLeftRadius: 4,
+    borderTopLeftRadius: scale(4),
   },
   senderName: {
-    fontSize: 11,
+    fontSize: moderateScale(11),
     fontWeight: '700',
-    color: '#15803d',
-    marginBottom: 2,
+    color: '#2563eb',
+    marginBottom: verticalScale(2),
     textTransform: 'uppercase',
   },
   messageText: {
-    fontSize: 15,
-    lineHeight: 21,
+    fontSize: moderateScale(15),
+    lineHeight: verticalScale(21),
   },
   sentText: {
     color: '#ffffff',
@@ -279,11 +284,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginTop: 4,
-    gap: 4,
+    marginTop: verticalScale(4),
+    gap: scale(4),
   },
   timestamp: {
-    fontSize: 11,
+    fontSize: moderateScale(11),
   },
   sentTimestamp: {
     color: 'rgba(255,255,255,0.7)',
@@ -292,45 +297,45 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
   },
   readReceipt: {
-    marginLeft: 2,
+    marginLeft: scale(2),
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 48,
+    paddingVertical: verticalScale(48),
   },
   emptyTitle: {
-    fontSize: 17,
+    fontSize: moderateScale(17),
     fontWeight: '700',
     color: '#374151',
-    marginTop: 14,
+    marginTop: verticalScale(14),
   },
   emptySubtitle: {
-    fontSize: 13,
+    fontSize: moderateScale(13),
     color: '#9ca3af',
-    marginTop: 4,
+    marginTop: verticalScale(4),
     textAlign: 'center',
   },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingHorizontal: scale(8),
+    paddingVertical: verticalScale(8),
     backgroundColor: '#ffffff',
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
   },
   textInput: {
     flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
+    minHeight: verticalScale(40),
+    maxHeight: verticalScale(100),
     backgroundColor: '#f3f4f6',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
+    borderRadius: scale(20),
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(10),
+    fontSize: moderateScale(15),
     color: '#1f2937',
-    marginRight: 4,
+    marginRight: scale(4),
   },
   sendButton: {
     margin: 0,

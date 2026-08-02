@@ -18,7 +18,7 @@
       "newArchEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#15803d",
-        "foregroundImage": "./assets/android-icon-foreground.png",
+        "foregroundImage": "./assets/playstore-icon.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
@@ -33,7 +33,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
+    "icon": "./assets/playstore-icon.png",
           "color": "#15803d"
         }
       ]

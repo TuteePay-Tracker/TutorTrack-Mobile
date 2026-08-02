@@ -51,7 +51,7 @@ export default function AnnouncementDetailScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#15803d" />
+        <ActivityIndicator size="large" color="#2563eb" />
       </View>
     );
   }
@@ -73,12 +73,12 @@ export default function AnnouncementDetailScreen() {
         options={{
           headerShown: true,
           title: '',
-          headerTintColor: '#15803d',
+          headerTintColor: '#2563eb',
           headerShadowVisible: false,
           headerStyle: { backgroundColor: '#ffffff' },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-              <MaterialCommunityIcons name="chevron-left" size={28} color="#15803d" />
+              <MaterialCommunityIcons name="chevron-left" size={28} color="#2563eb" />
             </TouchableOpacity>
           ),
         }}
