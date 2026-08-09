@@ -41,6 +41,7 @@ export default function PaymentsScreen() {
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [paidMap, setPaidMap] = useState<Record<string, number>>({});
+  const [verifiedMap, setVerifiedMap] = useState<Record<string, number>>({});
   const [pendingMap, setPendingMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [proofViewerUrl, setProofViewerUrl] = useState<string | null>(null);
@@ -77,6 +78,11 @@ export default function PaymentsScreen() {
       });
       cleanups.push(unsubPaid);
 
+      const unsubVerified = paymentService.subscribeVerifiedAmountByTutee(tutorId, tutee.id, (verified) => {
+        setVerifiedMap((prev) => ({ ...prev, [tutee.id]: verified }));
+      });
+      cleanups.push(unsubVerified);
+
       const unsubPending = paymentService.subscribePendingAmountByTutee(tutorId, tutee.id, (pending) => {
         setPendingMap((prev) => ({ ...prev, [tutee.id]: pending }));
       });
@@ -93,16 +99,27 @@ export default function PaymentsScreen() {
 
   const tuteeName = (t: any) => `${t.firstName} ${t.surname}`;
 
-  const totalPaid = Object.values(paidMap).reduce((s, v) => s + v, 0)
-    + Object.values(pendingMap).reduce((s, v) => s + v, 0);
+  // Total Paid = tutor cash records (paymentTransactions) + verified parent proof payments (payments)
+  const totalPaid = scopeTutees.reduce((s, tutee) =>
+    s + (paidMap[tutee.id] || 0) + (verifiedMap[tutee.id] || 0), 0);
   const totalOutstanding = Math.round(scopeTutees.reduce((sum, tutee) => {
-    const paid = (paidMap[tutee.id] || 0) + (pendingMap[tutee.id] || 0);
+    const paid = (paidMap[tutee.id] || 0) + (verifiedMap[tutee.id] || 0);
     const due = (tutee.totalSessions || 0) * (tutee.ratePerSession || 0);
     return sum + Math.max(due - paid, 0);
   }, 0));
 
+  // Deduplicate transactions that are already recorded in the payments collection
+  const deduplicatedTransactions = transactions.filter((t) => {
+    return !payments.some((p) =>
+      p.tuteeId === t.tuteeId &&
+      p.amount === t.totalAmount &&
+      p.paymentDate === t.paymentDate &&
+      p.paymentMethod === t.paymentMethod
+    );
+  });
+
   const mergedTransactions: MergedTransaction[] = [
-    ...transactions.map((t) => ({
+    ...deduplicatedTransactions.map((t) => ({
       id: t.id,
       tuteeId: t.tuteeId,
       tuteeName: t.tuteeName,
@@ -128,7 +145,7 @@ export default function PaymentsScreen() {
   ].sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
 
   const perChild = focusTuteeId ? [] : scopeTutees.map((t) => {
-    const paid = (paidMap[t.id] || 0) + (pendingMap[t.id] || 0);
+    const paid = (paidMap[t.id] || 0) + (verifiedMap[t.id] || 0);
     const due = (t.totalSessions || 0) * (t.ratePerSession || 0);
     return { id: t.id, name: tuteeName(t), paid, balance: Math.max(due - paid, 0) };
   });
@@ -245,7 +262,7 @@ export default function PaymentsScreen() {
                     <Text style={styles.txnDate}>{formatDate(txn.paymentDate)}</Text>
                   </View>
 
-                  {txn.proofUrl && (txn.status === 'pending' || txn.status === 'rejected') && (
+                  {txn.proofUrl && (txn.status === 'pending' || txn.status === 'rejected' || txn.status === 'verified') && (
                     <TouchableOpacity
                       onPress={() => setProofViewerUrl(txn.proofUrl!)}
                       style={styles.proofPreview}

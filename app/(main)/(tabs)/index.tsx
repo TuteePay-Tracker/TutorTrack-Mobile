@@ -52,7 +52,7 @@ export default function ParentDashboard() {
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [payments, setPayments] = useState<Record<string, number>>({});
-  const [pendingMap, setPendingMap] = useState<Record<string, number>>({});
+  const [verifiedPayments, setVerifiedPayments] = useState<Record<string, number>>({});
   const [attendance, setAttendance] = useState<Record<string, { presentCount: number; totalSessions: number }>>({});
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,9 +85,10 @@ export default function ParentDashboard() {
           setPayments((prev) => ({ ...prev, [tutee.id]: total }));
         })
       );
+      // Also subscribe to verified parent proof payments
       unsubPayments.push(
-        paymentService.subscribePendingAmountByTutee(tutorId, tutee.id, (pending: number) => {
-          setPendingMap((prev) => ({ ...prev, [tutee.id]: pending }));
+        paymentService.subscribeVerifiedAmountByTutee(tutorId, tutee.id, (verified: number) => {
+          setVerifiedPayments((prev) => ({ ...prev, [tutee.id]: verified }));
         })
       );
       unsubAttendance.push(
@@ -146,11 +147,12 @@ export default function ParentDashboard() {
     );
   }
 
-  const totalPaid = Math.round(Object.values(payments).reduce((sum, amount) => sum + amount, 0)
-    + Object.values(pendingMap).reduce((sum, amount) => sum + amount, 0));
+  // Total Paid = tutor cash records (paymentTransactions) + verified parent proof payments (payments)
+  const totalPaid = Math.round(tutees.reduce((sum, tutee) =>
+    sum + (payments[tutee.id] || 0) + (verifiedPayments[tutee.id] || 0), 0));
 
   const totalOutstanding = Math.round(tutees.reduce((sum, tutee) => {
-    const paid = (payments[tutee.id] || 0) + (pendingMap[tutee.id] || 0);
+    const paid = (payments[tutee.id] || 0) + (verifiedPayments[tutee.id] || 0);
     const due = (tutee.totalSessions || 0) * (tutee.ratePerSession || 0);
     return sum + Math.max(due - paid, 0);
   }, 0));
@@ -169,7 +171,7 @@ export default function ParentDashboard() {
 
   const recentAssessments = [...assessments]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
+    .slice(0, 3);
 
   const monthlyScores: Record<string, Record<string, number[]>> = {};
   tutees.forEach((tutee) => {
@@ -196,7 +198,7 @@ export default function ParentDashboard() {
     subjectTotals[subject].count += 1;
   });
 
-  const subjectLabels = Object.keys(subjectTotals).slice(0, 5);
+  const subjectLabels = Object.keys(subjectTotals).slice(0, 3);
 
   const allSchedule: any[] = [];
   tutees.forEach((tutee) => {
@@ -403,7 +405,7 @@ export default function ParentDashboard() {
           </Card.Content>
         </Card>
       ) : (
-        sortedSchedule.map((s, idx) => (
+        sortedSchedule.slice(0, 3).map((s, idx) => (
           <Animated.View key={idx} entering={FadeInDown.delay(idx * 40).duration(200)}>
             <Card style={styles.listCard}>
               <Card.Content style={styles.listRow}>
@@ -434,7 +436,7 @@ export default function ParentDashboard() {
           </Card.Content>
         </Card>
       ) : (
-        tutees.map((tutee, idx) => {
+        tutees.slice(0, 3).map((tutee, idx) => {
           const att = attendance[tutee.id] || { presentCount: 0, totalSessions: 0 };
           const rate = att.totalSessions > 0 ? Math.round((att.presentCount / att.totalSessions) * 100) : 100;
           return (

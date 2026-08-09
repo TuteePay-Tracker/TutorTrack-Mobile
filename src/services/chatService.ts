@@ -12,6 +12,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db, auth } from './firebaseConfig';
+import { notificationService } from './notificationService';
 import { ChatThread, Message } from '../types/chat';
 import { Tutee } from '../types/tutee';
 
@@ -92,6 +93,11 @@ export const chatService = {
       updatedAt: Timestamp.now(),
       [`unreadCount.${recipientId}`]: (await getDoc(doc(db, 'chats', chatId))).data()?.unreadCount?.[recipientId] || 0 + 1,
     });
+
+    // Fire-and-forget push to the receiver only (never the sender).
+    notificationService
+      .sendChatNotification(recipientId, senderName, text, chatId)
+      .catch((error) => console.warn('Failed to send chat push:', error));
   },
 
   async markAsRead(chatId: string, readerId: string, writerId: string): Promise<void> {

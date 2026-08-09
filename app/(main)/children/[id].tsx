@@ -275,7 +275,7 @@ export default function ChildDetailsScreen() {
 
         <Card style={styles.sectionCard}>
           <Card.Content>
-            <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/assessments`)} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/assessments?from=children/${id}`)} activeOpacity={0.7}>
               <MaterialCommunityIcons name="chart-line" size={18} color="#2563eb" />
               <Text style={styles.sectionTitle}>Assessments</Text>
               <View style={styles.seeAllRow}>

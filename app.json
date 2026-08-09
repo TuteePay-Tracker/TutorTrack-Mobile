@@ -41,7 +41,7 @@
       [
         "expo-notifications",
         {
-    "icon": "./assets/playstore-icon.png",
+          "icon": "./assets/playstore-icon.png",
           "color": "#15803d"
         }
       ]

@@ -1,4 +1,4 @@
-import { collection, query, where, onSnapshot, addDoc, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, addDoc, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { Payment, PaymentMethod } from '../types/payment';
 
@@ -98,6 +98,26 @@ export const paymentService = {
       });
       callback({ presentCount: present, totalSessions: total });
     });
+  },
+
+  async getRecordsByTutee(tutorId: string, tuteeId: string): Promise<MonthlyRecord[]> {
+    const recordsRef = collection(db, 'users', tutorId, 'paymentRecords');
+    const q = query(recordsRef, where('tuteeId', '==', tuteeId));
+
+    const snapshot = await getDocs(q);
+    const records = snapshot.docs.map((docSnap) => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        ...data,
+        lastUpdated:
+          data.lastUpdated?.toDate?.()?.toISOString() || new Date().toISOString(),
+        createdAt:
+          data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      } as MonthlyRecord;
+    });
+    records.sort((a, b) => b.month.localeCompare(a.month));
+    return records;
   },
 
   subscribeRecordsByTutee(
@@ -221,6 +241,23 @@ export const paymentService = {
   ): () => void {
     const paymentsRef = collection(db, 'users', tutorId, 'payments');
     const q = query(paymentsRef, where('tuteeId', '==', tuteeId), where('status', '==', 'pending'));
+
+    return onSnapshot(q, (snapshot) => {
+      const total = snapshot.docs.reduce((sum, docSnap) => {
+        const data = docSnap.data();
+        return sum + (typeof data.amount === 'number' ? data.amount : 0);
+      }, 0);
+      callback(total);
+    });
+  },
+
+  subscribeVerifiedAmountByTutee(
+    tutorId: string,
+    tuteeId: string,
+    callback: (verifiedTotal: number) => void
+  ): () => void {
+    const paymentsRef = collection(db, 'users', tutorId, 'payments');
+    const q = query(paymentsRef, where('tuteeId', '==', tuteeId), where('status', '==', 'verified'));
 
     return onSnapshot(q, (snapshot) => {
       const total = snapshot.docs.reduce((sum, docSnap) => {

@@ -3,6 +3,7 @@ import { Stack, useSegments, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuthContext } from '../src/contexts/AuthContext';
+import { NotificationProvider } from '../src/contexts/NotificationContext';
 import { ActivityIndicator, View, StyleSheet, Text, TextInput } from 'react-native';
 import { PaperProvider, DefaultTheme } from 'react-native-paper';
 
@@ -80,8 +81,10 @@ export default function RootLayout() {
     <PaperProvider theme={stripLetterSpacing(theme)}>
       <SafeAreaProvider>
         <AuthProvider>
-          <RootLayoutNav />
-          <StatusBar style="dark" />
+          <NotificationProvider>
+            <RootLayoutNav />
+            <StatusBar style="dark" />
+          </NotificationProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </PaperProvider>
