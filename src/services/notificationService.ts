@@ -125,9 +125,7 @@ export const notificationService = {
       });
     }
 
-    const token = await Notifications.getExpoPushTokenAsync({
-      projectId: 'tutorial-management-capstone',
-    });
+    const token = await Notifications.getExpoPushTokenAsync();
 
     const userId = auth.currentUser?.uid;
     if (userId && token.data) {
@@ -140,9 +138,12 @@ export const notificationService = {
   async saveToken(userId: string, token: string): Promise<void> {
     try {
       // Store one document per token (id = encoded token) so re-registering
-      // overwrites instead of creating duplicates.
+      // overwrites instead of creating duplicates. Delete-then-set keeps the
+      // write a "create" for the security rules (set() on an existing doc is
+      // gated by the update rule, which may not be deployed yet).
       const tokensRef = collection(db, 'users', userId, 'pushTokens');
       const docId = encodeURIComponent(token);
+      await deleteDoc(doc(tokensRef, docId));
       await setDoc(doc(tokensRef, docId), {
         token,
         platform: Platform.OS,
@@ -159,9 +160,14 @@ export const notificationService = {
     try {
       const tokensRef = collection(db, 'users', userId, 'pushTokens');
       const snapshot = await getDocs(tokensRef);
-      return snapshot.docs
+      const tokens = snapshot.docs
         .map((docSnap) => docSnap.data().token)
         .filter((token): token is string => typeof token === 'string' && token.length > 0);
+      console.log(
+        `[push] getUserTokens(${userId}) -> ${tokens.length} token(s):`,
+        tokens.map((t) => t.slice(0, 30))
+      );
+      return tokens;
     } catch (error) {
       console.warn('Failed to fetch push tokens:', error);
       return [];
@@ -218,6 +224,7 @@ export const notificationService = {
         }
 
         const tickets = await response.json();
+        console.log('[push] Expo push API response:', JSON.stringify(tickets));
         if (Array.isArray(tickets)) {
           tickets.forEach((ticket, index) => {
             if (ticket?.status === 'error') {
@@ -245,11 +252,15 @@ export const notificationService = {
   ): Promise<void> {
     if (!recipientId) return;
     const tokens = await this.getUserTokens(recipientId);
-    if (tokens.length === 0) return;
+    if (tokens.length === 0) {
+      console.warn(`[push] No push tokens found for recipient ${recipientId}`);
+      return;
+    }
 
     const preview =
       messageText.length > 120 ? `${messageText.slice(0, 120)}…` : messageText;
 
+    console.log(`[push] Sending chat push to ${tokens.length} token(s) for chat ${chatId}`);
     await this.sendPushMessage({
       tokens,
       title: senderName || 'New message',

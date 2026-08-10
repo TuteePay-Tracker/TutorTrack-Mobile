@@ -15,20 +15,19 @@
       "bundleIdentifier": "com.tutortrack.app"
     },
     "android": {
-      "newArchEnabled": false,
+      "package": "com.tutortrack.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#EBEBEB",
         "foregroundImage": "./assets/playstore-icon.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "package": "com.tutortrack.app"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
-      "expo-status-bar",
       [
         "expo-splash-screen",
         {
@@ -45,6 +44,12 @@
           "color": "#15803d"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9c105ca0-63f7-4012-a3a1-28e205497fda"
+      }
+    },
+    "owner": "tutortrack-mobile"
   }
 }

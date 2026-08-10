@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "16404624980",
+    "project_id": "tutorial-management-capstone",
+    "storage_bucket": "tutorial-management-capstone.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:16404624980:android:c225a9bf650d42d2a55fc1",
+        "android_client_info": {
+          "package_name": "com.tutortrack.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXNFpkj2t6d3mfPyQOUTeaHQmTE2rR2hg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
