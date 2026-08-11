@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { Text, Card, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -35,6 +35,8 @@ export default function AttendanceScreen() {
   const tabBarHeight = useTabBarHeight();
   const [attendanceMap, setAttendanceMap] = useState<Record<string, { presentCount: number; totalSessions: number }>>({});
   const [recordsMap, setRecordsMap] = useState<Record<string, AttendanceRecord[]>>({});
+  const [selectedMonths, setSelectedMonths] = useState<Record<string, string>>({});
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const focusTuteeId = from?.startsWith('children/') ? from.split('/')[1] : undefined;
@@ -148,44 +150,64 @@ export default function AttendanceScreen() {
                   {records.length === 0 ? (
                     <Text style={styles.noHistoryText}>No attendance history yet</Text>
                   ) : (
-                    records.map((record) => {
-                      if (record.dayPayments.length === 0) return null;
-                      const present = record.dayPayments.filter((d) => d.status === 'paid').length;
-                      const absent = record.dayPayments.filter((d) => d.status === 'partial').length;
-                      const noClass = record.dayPayments.filter((d) => d.status === 'no-class').length;
+                    <View style={styles.monthDropdownWrap}>
+                      {(() => {
+                        const monthOptions = records.map((r) => r.month);
+                        const selectedMonth = selectedMonths[tutee.id] ?? records[0]?.month;
+                        const record = records.find((r) => r.month === selectedMonth);
+                        return (
+                          <>
+                            <TouchableOpacity
+                              style={[styles.monthDropdownButton, openDropdownId === tutee.id && styles.monthDropdownButtonActive]}
+                              onPress={() => setOpenDropdownId(openDropdownId === tutee.id ? null : tutee.id)}
+                              activeOpacity={0.7}
+                            >
+                              <MaterialCommunityIcons name="calendar-month-outline" size={18} color="#2563eb" />
+                              <Text style={styles.monthDropdownText}>{formatMonthLabel(selectedMonth ?? '')}</Text>
+                              <MaterialCommunityIcons name="chevron-down" size={20} color="#9ca3af" />
+                            </TouchableOpacity>
 
-                      return (
-                        <View key={record.id} style={styles.monthSection}>
-                          <View style={styles.monthHeader}>
-                            <Text style={styles.monthTitle}>{formatMonthLabel(record.month)}</Text>
-                            <View style={styles.countChipRow}>
-                              <View style={[styles.countChip, { backgroundColor: '#f0fdf4' }]}>
-                                <Text style={[styles.countChipText, { color: '#059669' }]}>{present} Present</Text>
-                              </View>
-                              <View style={[styles.countChip, { backgroundColor: '#fef2f2' }]}>
-                                <Text style={[styles.countChipText, { color: '#dc2626' }]}>{absent} Absent</Text>
-                              </View>
-                              {noClass > 0 && (
-                                <View style={[styles.countChip, { backgroundColor: '#f5f3ff' }]}>
-                                  <Text style={[styles.countChipText, { color: '#7c3aed' }]}>{noClass} No Class</Text>
+                            {record && record.dayPayments.length > 0 && (
+                              <View style={styles.monthSection}>
+                                <View style={styles.monthHeader}>
+                                  <Text style={styles.monthTitle}>{formatMonthLabel(record.month)}</Text>
+                                  <View style={styles.countChipRow}>
+                                    <View style={[styles.countChip, { backgroundColor: '#f0fdf4' }]}>
+                                      <Text style={[styles.countChipText, { color: '#059669' }]}>
+                                        {record.dayPayments.filter((d) => d.status === 'paid').length} Present
+                                      </Text>
+                                    </View>
+                                    <View style={[styles.countChip, { backgroundColor: '#fef2f2' }]}>
+                                      <Text style={[styles.countChipText, { color: '#dc2626' }]}>
+                                        {record.dayPayments.filter((d) => d.status === 'partial').length} Absent
+                                      </Text>
+                                    </View>
+                                    {record.dayPayments.some((d) => d.status === 'no-class') && (
+                                      <View style={[styles.countChip, { backgroundColor: '#f5f3ff' }]}>
+                                        <Text style={[styles.countChipText, { color: '#7c3aed' }]}>
+                                          {record.dayPayments.filter((d) => d.status === 'no-class').length} No Class
+                                        </Text>
+                                      </View>
+                                    )}
+                                  </View>
                                 </View>
-                              )}
-                            </View>
-                          </View>
-                          <View style={styles.dayGrid}>
-                            {record.dayPayments.map((day) => {
-                              const config = DAY_STATUS_CONFIG[day.status] || defaultDayConfig;
-                              return (
-                                <View key={day.date} style={[styles.dayChip, { backgroundColor: config.bg }]}>
-                                  <Text style={[styles.dayChipDate, { color: config.color }]}>{formatDayLabel(day.date)}</Text>
-                                  <Text style={[styles.dayChipStatus, { color: config.color }]}>{config.label}</Text>
+                                <View style={styles.dayGrid}>
+                                  {record.dayPayments.map((day) => {
+                                    const config = DAY_STATUS_CONFIG[day.status] || defaultDayConfig;
+                                    return (
+                                      <View key={day.date} style={[styles.dayChip, { backgroundColor: config.bg }]}>
+                                        <Text style={[styles.dayChipDate, { color: config.color }]}>{formatDayLabel(day.date)}</Text>
+                                        <Text style={[styles.dayChipStatus, { color: config.color }]}>{config.label}</Text>
+                                      </View>
+                                    );
+                                  })}
                                 </View>
-                              );
-                            })}
-                          </View>
-                        </View>
-                      );
-                    })
+                              </View>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </View>
                   )}
                 </Card.Content>
               </Card>
@@ -193,6 +215,55 @@ export default function AttendanceScreen() {
           })
         )}
       </ScrollView>
+
+      <Modal
+        visible={openDropdownId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOpenDropdownId(null)}
+      >
+        <TouchableOpacity
+          style={styles.dropdownOverlay}
+          activeOpacity={1}
+          onPress={() => setOpenDropdownId(null)}
+        >
+          <View style={styles.dropdownSheet}>
+            {(() => {
+              const dropdownTutee = scopeTutees.find((t) => t.id === openDropdownId);
+              const monthOptions = (recordsMap[openDropdownId ?? ''] || []).map((r) => r.month);
+              const selectedMonth = selectedMonths[openDropdownId ?? ''] ?? monthOptions[0];
+              return monthOptions.map((ym) => {
+                const isSelected = selectedMonth === ym;
+                return (
+                  <TouchableOpacity
+                    key={ym}
+                    style={[styles.dropdownOption, isSelected && styles.dropdownOptionSelected]}
+                    onPress={() => {
+                      if (openDropdownId) {
+                        setSelectedMonths((prev) => ({ ...prev, [openDropdownId]: ym }));
+                      }
+                      setOpenDropdownId(null);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons
+                      name="calendar-month-outline"
+                      size={18}
+                      color={isSelected ? '#2563eb' : '#6b7280'}
+                    />
+                    <Text style={[styles.dropdownOptionText, isSelected && styles.dropdownOptionTextSelected]}>
+                      {formatMonthLabel(ym)}
+                    </Text>
+                    {dropdownTutee && isSelected && (
+                      <MaterialCommunityIcons name="check" size={18} color="#2563eb" />
+                    )}
+                  </TouchableOpacity>
+                );
+              });
+            })()}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </>
   );
 }
@@ -215,6 +286,60 @@ const styles = StyleSheet.create({
   rateBadge: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
   rateText: { fontSize: 16, fontWeight: '800' },
   noHistoryText: { fontSize: 13, color: '#9ca3af', fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
+  monthDropdownWrap: { marginTop: 12 },
+  monthDropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  monthDropdownButtonActive: {
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+  },
+  monthDropdownText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  dropdownSheet: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingVertical: 8,
+    paddingBottom: 24,
+    maxHeight: '70%',
+  },
+  dropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  dropdownOptionSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  dropdownOptionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  dropdownOptionTextSelected: {
+    color: '#2563eb',
+  },
   monthSection: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f3f4f6' },
   monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
   monthTitle: { fontSize: 15, fontWeight: '800', color: '#111827' },

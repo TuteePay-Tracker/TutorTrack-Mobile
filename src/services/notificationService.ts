@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   doc,
@@ -125,7 +126,16 @@ export const notificationService = {
       });
     }
 
-    const token = await Notifications.getExpoPushTokenAsync();
+    const projectId =
+      Constants?.expoConfig?.extra?.eas?.projectId ??
+      Constants?.easConfig?.projectId;
+
+    if (!projectId) {
+      console.warn('No EAS projectId found – push token registration skipped.');
+      return null;
+    }
+
+    const token = await Notifications.getExpoPushTokenAsync({ projectId });
 
     const userId = auth.currentUser?.uid;
     if (userId && token.data) {

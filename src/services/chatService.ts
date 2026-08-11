@@ -10,6 +10,9 @@ import {
   getDocs,
   getDoc,
   writeBatch,
+  deleteDoc,
+  orderBy,
+  limit,
 } from 'firebase/firestore';
 import { db, auth } from './firebaseConfig';
 import { notificationService } from './notificationService';
@@ -86,12 +89,15 @@ export const chatService = {
       status: 'sent',
     });
 
+    const threadDoc = await getDoc(doc(db, 'chats', chatId));
+    const currentUnread = threadDoc.data()?.unreadCount?.[recipientId] || 0;
+
     await updateDoc(doc(db, 'chats', chatId), {
       lastMessageText: text,
       lastMessageSenderId: senderId,
       lastMessageTimestamp: Timestamp.now(),
       updatedAt: Timestamp.now(),
-      [`unreadCount.${recipientId}`]: (await getDoc(doc(db, 'chats', chatId))).data()?.unreadCount?.[recipientId] || 0 + 1,
+      [`unreadCount.${recipientId}`]: currentUnread + 1,
     });
 
     // Fire-and-forget push to the receiver only (never the sender).
@@ -118,6 +124,34 @@ export const chatService = {
       batch.update(docSnap.ref, { status: 'seen' });
     });
     await batch.commit();
+  },
+
+  async deleteMessage(chatId: string, messageId: string): Promise<void> {
+    await deleteDoc(doc(db, 'chats', chatId, 'messages', messageId));
+
+    const latestQuery = query(
+      collection(db, 'chats', chatId, 'messages'),
+      orderBy('timestamp', 'desc'),
+      limit(1)
+    );
+    const latestSnap = await getDocs(latestQuery);
+
+    if (latestSnap.empty) {
+      await updateDoc(doc(db, 'chats', chatId), {
+        lastMessageText: '',
+        lastMessageSenderId: '',
+        lastMessageTimestamp: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    } else {
+      const latest = latestSnap.docs[0].data();
+      await updateDoc(doc(db, 'chats', chatId), {
+        lastMessageText: latest.text || '',
+        lastMessageSenderId: latest.senderId || '',
+        lastMessageTimestamp: latest.timestamp || Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    }
   },
 
   async getOrCreateThread(

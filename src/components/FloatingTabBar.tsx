@@ -4,7 +4,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scale, verticalScale } from 'react-native-size-matters';
 import Animated, {
-  FadeInUp,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
@@ -81,9 +80,8 @@ export function FloatingTabBar({ state, navigation }: FloatingTabBarProps) {
   }
 
   return (
-    <Animated.View
+    <View
       style={[styles.wrapper, { bottom: insets.bottom + verticalScale(8) }]}
-      entering={FadeInUp.delay(120).springify().damping(16)}
     >
       <View style={styles.bar}>
         {tabs.map((tab) => {
@@ -105,7 +103,7 @@ export function FloatingTabBar({ state, navigation }: FloatingTabBarProps) {
           );
         })}
       </View>
-    </Animated.View>
+    </View>
   );
 }
 

@@ -6,6 +6,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   TextInput,
+  Pressable,
+  Alert,
+  StyleProp,
+  ViewStyle,
 } from 'react-native';
 import { Text, IconButton, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -17,7 +21,7 @@ import { Message, ChatThread } from '../../../../src/types/chat';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../../src/services/firebaseConfig';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 export default function ChatScreen() {
   const { id: chatId } = useLocalSearchParams<{ id: string }>();
@@ -28,21 +32,28 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const flatListRef = useRef<FlatList>(null);
+  const isNearBottomRef = useRef(true);
+  const messagesLengthRef = useRef(0);
 
   useEffect(() => {
-    if (!chatId) return;
+    if (!chatId || !user?.id) return;
 
     const unsubscribe = chatService.subscribeToMessages(chatId, (msgs) => {
       setMessages(msgs);
       setLoading(false);
-      if (user?.id && msgs.length > 0) {
-        const lastMsg = msgs[msgs.length - 1];
-        if (lastMsg.senderId !== user.id) {
-          const otherUserId = user.role === 'tutor' ? thread?.parentId : thread?.tutorId;
-          if (otherUserId) {
-            chatService.markAsRead(chatId, user.id, otherUserId);
-          }
-        }
+
+      if (msgs.length > messagesLengthRef.current && isNearBottomRef.current) {
+        requestAnimationFrame(() => {
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        });
+      }
+      messagesLengthRef.current = msgs.length;
+
+      const unreadMessage = msgs.find(
+        (m) => m.senderId !== user.id && m.status === 'sent'
+      );
+      if (unreadMessage) {
+        chatService.markAsRead(chatId, user.id, unreadMessage.senderId);
       }
     });
 
@@ -91,6 +102,32 @@ export default function ChatScreen() {
     }
   };
 
+  const handleDeleteMessage = (message: Message) => {
+    if (!chatId) return;
+    Alert.alert(
+      'Delete message',
+      'Delete this message? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await chatService.deleteMessage(chatId, message.id);
+            } catch (error) {
+              console.error('Failed to delete message:', error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleScroll = (event: any) => {
+    isNearBottomRef.current = event.nativeEvent.contentOffset.y < 80;
+  };
+
   const formatTimestamp = (timestamp: any) => {
     if (!timestamp) return '';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -114,37 +151,46 @@ export default function ChatScreen() {
     const isSent = item.senderId === user?.id;
 
     return (
-      <Animated.View
-        entering={FadeInDown.duration(180)}
-        style={[styles.messageRow, isSent ? styles.sentRow : styles.receivedRow]}
+      <Pressable
+        onLongPress={isSent ? () => handleDeleteMessage(item) : undefined}
+        delayLongPress={350}
       >
-        <View style={[styles.messageBubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
-          {!isSent && item.senderName && (
-            <Text style={styles.senderName}>{item.senderName}</Text>
-          )}
-          <Text style={[styles.messageText, isSent ? styles.sentText : styles.receivedText]}>
-            {item.text}
-          </Text>
-          <View style={styles.messageFooter}>
-            <Text style={[styles.timestamp, isSent ? styles.sentTimestamp : styles.receivedTimestamp]}>
-              {formatTimestamp(item.timestamp)}
-            </Text>
-            {isSent && (
-              <MaterialCommunityIcons
-                name={item.status === 'seen' ? 'check-all' : 'check'}
-                size={scale(14)}
-                color={item.status === 'seen' ? '#93c5fd' : 'rgba(255,255,255,0.6)'}
-                style={styles.readReceipt}
-              />
-            )}
-          </View>
+        <View
+          style={[
+            styles.messageRow,
+            isSent ? styles.sentRow : styles.receivedRow,
+          ]}
+        >
+          <Animated.View entering={FadeIn.duration(180)}>
+            <View style={[styles.messageBubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
+              {!isSent && item.senderName && (
+                <Text style={styles.senderName}>{item.senderName}</Text>
+              )}
+              <Text style={[styles.messageText, isSent ? styles.sentText : styles.receivedText]}>
+                {item.text}
+              </Text>
+              <View style={styles.messageFooter}>
+                <Text style={[styles.timestamp, isSent ? styles.sentTimestamp : styles.receivedTimestamp]}>
+                  {formatTimestamp(item.timestamp)}
+                </Text>
+                {isSent && (
+                  <MaterialCommunityIcons
+                    name={item.status === 'seen' ? 'check-all' : 'check'}
+                    size={scale(14)}
+                    color={item.status === 'seen' ? '#93c5fd' : 'rgba(255,255,255,0.6)'}
+                    style={styles.readReceipt}
+                  />
+                )}
+              </View>
+            </View>
+          </Animated.View>
         </View>
-      </Animated.View>
+      </Pressable>
     );
   };
 
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
+  const renderEmpty = ({ style }: { style?: StyleProp<ViewStyle> }) => (
+    <View style={[styles.emptyContainer, style]}>
       <MaterialCommunityIcons name="chat-outline" size={scale(56)} color="#d1d5db" />
       <Text style={styles.emptyTitle}>Wave hello!</Text>
       <Text style={styles.emptySubtitle}>Send a message to start the conversation.</Text>
@@ -176,9 +222,12 @@ export default function ChatScreen() {
       >
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={[...messages].reverse()}
           renderItem={renderMessage}
           keyExtractor={(item) => item.id}
+          inverted
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
           contentContainerStyle={[
             styles.messageList,
             messages.length === 0 && styles.messageListEmpty,

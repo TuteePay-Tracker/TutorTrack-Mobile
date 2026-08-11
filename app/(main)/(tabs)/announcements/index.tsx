@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +20,7 @@ export default function AnnouncementsScreen() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (!user?.createdByTutorId) return;
@@ -71,7 +72,7 @@ export default function AnnouncementsScreen() {
       </View>
 
       <FlatList
-        data={announcements}
+        data={expanded ? announcements : announcements.slice(0, 5)}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
           <Animated.View entering={FadeInDown.delay(index * 40).duration(200)}>
@@ -96,6 +97,18 @@ export default function AnnouncementsScreen() {
             title="No announcements"
             message="There are no announcements from your tutor yet."
           />
+        }
+        ListFooterComponent={
+          announcements.length > 5 ? (
+            <TouchableOpacity style={styles.footerButton} onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
+              <Text style={styles.footerButtonText}>{expanded ? 'See Less' : 'See More'}</Text>
+              <MaterialCommunityIcons
+                name={expanded ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color="#2563eb"
+              />
+            </TouchableOpacity>
+          ) : null
         }
       />
     </View>
@@ -139,5 +152,22 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     flexGrow: 1,
+  },
+  footerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 8,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    borderRadius: 12,
+  },
+  footerButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2563eb',
   },
 });
