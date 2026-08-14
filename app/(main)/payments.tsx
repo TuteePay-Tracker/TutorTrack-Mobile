@@ -45,6 +45,8 @@ export default function PaymentsScreen() {
   const [pendingMap, setPendingMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [proofViewerUrl, setProofViewerUrl] = useState<string | null>(null);
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
 
   const focusTuteeId = from?.startsWith('children/') ? from.split('/')[1] : undefined;
   const scopeTutees = focusTuteeId ? tutees.filter((t) => t.id === focusTuteeId) : tutees;
@@ -144,6 +146,27 @@ export default function PaymentsScreen() {
     })),
   ].sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
 
+  const groupedByMonth: { key: string; label: string; total: number; items: MergedTransaction[] }[] = [];
+  mergedTransactions.forEach((txn) => {
+    const date = new Date(txn.paymentDate);
+    const key = isNaN(date.getTime())
+      ? 'unknown'
+      : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const label = isNaN(date.getTime())
+      ? 'Unknown'
+      : date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    const last = groupedByMonth[groupedByMonth.length - 1];
+    if (last && last.key === key) {
+      last.items.push(txn);
+      last.total += txn.amount;
+    } else {
+      groupedByMonth.push({ key, label, total: txn.amount, items: [txn] });
+    }
+  });
+
+  const selectedGroup =
+    groupedByMonth.find((g) => g.key === selectedMonthKey) ?? groupedByMonth[0];
+
   const perChild = focusTuteeId ? [] : scopeTutees.map((t) => {
     const paid = (paidMap[t.id] || 0) + (verifiedMap[t.id] || 0);
     const due = (t.totalSessions || 0) * (t.ratePerSession || 0);
@@ -236,51 +259,112 @@ export default function PaymentsScreen() {
             message="No payment records available yet."
           />
         ) : (
-          mergedTransactions.map((txn) => {
-            const statusInfo = txn.status ? STATUS_CONFIG[txn.status] : null;
-            return (
-              <Card key={txn.id} style={styles.txnCard}>
-                <Card.Content>
-                  <View style={styles.txnRow}>
-                    <View style={styles.txnLeft}>
-                      <View style={styles.txnAmountRow}>
-                        <Text style={styles.txnAmount}>{formatCurrency(txn.amount)}</Text>
-                        {statusInfo && (
-                          <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
-                            <Text style={[styles.statusText, { color: statusInfo.color }]}>
-                              {statusInfo.label}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text style={styles.txnMeta}>{focusTuteeId ? txn.paymentMethod : `${txn.tuteeName} · ${txn.paymentMethod}`}</Text>
-                      {txn.notes && <Text style={styles.txnNotes}>{txn.notes}</Text>}
-                      {txn.rejectionReason && txn.status === 'rejected' && (
-                        <Text style={styles.rejectionText}>Reason: {txn.rejectionReason}</Text>
-                      )}
-                    </View>
-                    <Text style={styles.txnDate}>{formatDate(txn.paymentDate)}</Text>
-                  </View>
+          <>
+            <TouchableOpacity
+              style={[styles.monthDropdownButton, showMonthPicker && styles.monthDropdownButtonActive]}
+              onPress={() => setShowMonthPicker(true)}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="calendar-month-outline" size={18} color="#2563eb" />
+              <Text style={styles.monthDropdownText}>{selectedGroup?.label}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={20} color="#9ca3af" />
+            </TouchableOpacity>
 
-                  {txn.proofUrl && (txn.status === 'pending' || txn.status === 'rejected' || txn.status === 'verified') && (
-                    <TouchableOpacity
-                      onPress={() => setProofViewerUrl(txn.proofUrl!)}
-                      style={styles.proofPreview}
-                      activeOpacity={0.7}
-                    >
-                      <Image source={{ uri: txn.proofUrl }} style={styles.proofImage} />
-                      <View style={styles.proofOverlay}>
-                        <MaterialCommunityIcons name="image-outline" size={14} color="#ffffff" />
-                        <Text style={styles.proofOverlayText}>View Proof</Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
-                </Card.Content>
-              </Card>
-            );
-          })
+            {selectedGroup && (
+              <View style={styles.monthSection}>
+                <View style={styles.monthHeader}>
+                  <Text style={styles.monthLabel}>{selectedGroup.label}</Text>
+                  <Text style={styles.monthTotal}>{formatCurrency(selectedGroup.total)}</Text>
+                </View>
+                {selectedGroup.items.map((txn) => {
+                  const statusInfo = txn.status ? STATUS_CONFIG[txn.status] : null;
+                  return (
+                    <Card key={txn.id} style={styles.txnCard}>
+                      <Card.Content>
+                        <View style={styles.txnRow}>
+                          <View style={styles.txnLeft}>
+                            <View style={styles.txnAmountRow}>
+                              <Text style={styles.txnAmount}>{formatCurrency(txn.amount)}</Text>
+                              {statusInfo && (
+                                <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
+                                  <Text style={[styles.statusText, { color: statusInfo.color }]}>
+                                    {statusInfo.label}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={styles.txnMeta}>{focusTuteeId ? txn.paymentMethod : `${txn.tuteeName} · ${txn.paymentMethod}`}</Text>
+                            {txn.notes && <Text style={styles.txnNotes}>{txn.notes}</Text>}
+                            {txn.rejectionReason && txn.status === 'rejected' && (
+                              <Text style={styles.rejectionText}>Reason: {txn.rejectionReason}</Text>
+                            )}
+                          </View>
+                          <Text style={styles.txnDate}>{formatDate(txn.paymentDate)}</Text>
+                        </View>
+
+                        {txn.proofUrl && (txn.status === 'pending' || txn.status === 'rejected' || txn.status === 'verified') && (
+                          <TouchableOpacity
+                            onPress={() => setProofViewerUrl(txn.proofUrl!)}
+                            style={styles.proofPreview}
+                            activeOpacity={0.7}
+                          >
+                            <Image source={{ uri: txn.proofUrl }} style={styles.proofImage} />
+                            <View style={styles.proofOverlay}>
+                              <MaterialCommunityIcons name="image-outline" size={14} color="#ffffff" />
+                              <Text style={styles.proofOverlayText}>View Proof</Text>
+                            </View>
+                          </TouchableOpacity>
+                        )}
+                      </Card.Content>
+                    </Card>
+                  );
+                })}
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
+
+      {/* Month Picker */}
+      <Modal
+        visible={showMonthPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMonthPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.dropdownOverlay}
+          activeOpacity={1}
+          onPress={() => setShowMonthPicker(false)}
+        >
+          <View style={styles.dropdownSheet}>
+            {groupedByMonth.map((group) => {
+              const isSelected = selectedGroup?.key === group.key;
+              return (
+                <TouchableOpacity
+                  key={group.key}
+                  style={[styles.dropdownOption, isSelected && styles.dropdownOptionSelected]}
+                  onPress={() => {
+                    setSelectedMonthKey(group.key);
+                    setShowMonthPicker(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name="calendar-month-outline"
+                    size={18}
+                    color={isSelected ? '#2563eb' : '#6b7280'}
+                  />
+                  <Text style={[styles.dropdownOptionText, isSelected && styles.dropdownOptionTextSelected]}>
+                    {group.label}
+                  </Text>
+                  {isSelected && <MaterialCommunityIcons name="check" size={18} color="#2563eb" />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Proof Image Viewer */}
       <Modal visible={!!proofViewerUrl} transparent animationType="fade">
@@ -323,6 +407,82 @@ const styles = StyleSheet.create({
   submitPaymentContent: { paddingVertical: 4 },
   submitPaymentLabel: { fontWeight: '800', fontSize: 15 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 10, marginTop: 4 },
+  monthHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  monthLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1e40af',
+    textTransform: 'uppercase',
+  },
+  monthTotal: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1e40af',
+  },
+  monthSection: { marginTop: 10 },
+  monthDropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  monthDropdownButtonActive: {
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+  },
+  monthDropdownText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  dropdownSheet: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingVertical: 8,
+    paddingBottom: 24,
+    maxHeight: '70%',
+  },
+  dropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  dropdownOptionSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  dropdownOptionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  dropdownOptionTextSelected: {
+    color: '#2563eb',
+  },
   childCard: { marginBottom: 8, borderRadius: 12, elevation: 1 },
   childCardClickable: { borderColor: '#2563eb', borderWidth: 1 },
   childRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

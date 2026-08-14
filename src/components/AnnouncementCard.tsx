@@ -18,9 +18,11 @@ const priorityConfig = {
 
 export const AnnouncementCard = ({ announcement, onPress }: AnnouncementCardProps) => {
   const priority = priorityConfig[announcement.priority] || priorityConfig.medium;
-  const date = announcement.createdAt?.toDate?.()
-    ? announcement.createdAt.toDate().toLocaleDateString()
-    : new Date(announcement.createdAt).toLocaleDateString();
+  const date = (announcement.createdAt?.toDate?.() ?? new Date(announcement.createdAt)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 
   return (
     <ScaleOnPress onPress={onPress} disabled={!onPress} style={styles.card}>
