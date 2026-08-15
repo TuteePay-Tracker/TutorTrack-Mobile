@@ -383,7 +383,7 @@ export default function ParentDashboard() {
                       {a.subject || 'General'} - {tutee?.firstName || 'Child'}
                     </Text>
                     <Text style={styles.listSecondary}>
-                      {new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · Score: {a.score}%
+                      {new Date(a.date).toLocaleDateString()} · Score: {a.score}%
                     </Text>
                   </View>
                 </Card.Content>

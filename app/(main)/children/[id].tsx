@@ -216,7 +216,7 @@ export default function ChildDetailsScreen() {
             {mergedTxns.length === 0 ? (
               <Text style={styles.emptyText}>No payment records yet</Text>
             ) : (
-              mergedTxns.slice(0, 4).map((txn) => {
+              mergedTxns.map((txn) => {
                 const statusInfo = txn.status ? STATUS_CONFIG[txn.status] : null;
                 return (
                   <View key={txn.id} style={styles.transactionItem}>
@@ -286,7 +286,7 @@ export default function ChildDetailsScreen() {
             {assessments.length === 0 ? (
               <Text style={styles.emptyText}>No assessment records yet</Text>
             ) : (
-              assessments.slice(0, 4).map((a) => (
+              assessments.map((a) => (
                 <View key={a.id} style={styles.assessmentItem}>
                   <View style={styles.assessmentInfo}>
                     <Text style={styles.assessmentSubject}>{a.subject}</Text>
