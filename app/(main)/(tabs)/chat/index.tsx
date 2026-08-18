@@ -95,7 +95,7 @@ export default function ChatThreadListScreen() {
       const parentId = tutee.parentId || user.id;
       const tutorId = user.role === 'tutor' ? user.id : user.createdByTutorId || '';
       const thread = await chatService.getOrCreateThread(tutee, parentId, tutorId);
-      router.push(`/(main)/chat/${thread.id}`);
+      router.navigate(`/(main)/chat/${thread.id}`);
     } catch (error) {
       console.error('Failed to create thread:', error);
     } finally {
@@ -111,7 +111,7 @@ export default function ChatThreadListScreen() {
       <Animated.View entering={FadeInDown.delay(index * 40).duration(200)}>
         <TouchableOpacity
           style={styles.threadItem}
-          onPress={() => router.push(`/(main)/chat/${item.id}`)}
+          onPress={() => router.navigate(`/(main)/chat/${item.id}`)}
         >
           <Avatar.Text
             size={scale(48)}

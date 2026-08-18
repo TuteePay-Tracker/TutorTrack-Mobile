@@ -224,7 +224,7 @@ export default function ParentDashboard() {
 
       {latestAnnouncement && (
         <ScaleOnPress
-          onPress={() => router.push(`/(main)/announcements/${latestAnnouncement.id}`)}
+          onPress={() => router.navigate(`/(main)/announcements/${latestAnnouncement.id}`)}
           entering={FadeInDown.duration(200)}
         >
           <Card style={styles.announcementCard}>

@@ -1,5 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { useAuth } from '../hooks/useAuth';
+import { chatService } from '../services/chatService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scale, verticalScale } from 'react-native-size-matters';
@@ -32,7 +34,7 @@ interface FloatingTabBarProps {
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
-function TabButton({ icon, focused, onPress }: { icon: string; focused: boolean; onPress: () => void }) {
+function TabButton({ icon, focused, showBadge, onPress }: { icon: string; focused: boolean; showBadge?: boolean; onPress: () => void }) {
   const progress = useSharedValue(focused ? 1 : 0);
 
   useEffect(() => {
@@ -62,6 +64,7 @@ function TabButton({ icon, focused, onPress }: { icon: string; focused: boolean;
           size={scale(20)}
           color={focused ? '#ffffff' : '#9ca3af'}
         />
+        {showBadge && <View style={styles.badgeDot} />}
       </Animated.View>
     </AnimatedTouchableOpacity>
   );
@@ -69,6 +72,29 @@ function TabButton({ icon, focused, onPress }: { icon: string; focused: boolean;
 
 export function FloatingTabBar({ state, navigation }: FloatingTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const [hasUnreadChats, setHasUnreadChats] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setHasUnreadChats(false);
+      return;
+    }
+
+    const unsubscribe = chatService.subscribeToThreads(
+      user.id,
+      user.role,
+      (threads) => {
+        const hasAnyUnread = threads.some((thread) => {
+          const count = thread.unreadCount?.[user.id] || 0;
+          return count > 0;
+        });
+        setHasUnreadChats(hasAnyUnread);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user]);
 
   const focusedRoute = state.routes[state.index];
   if (!focusedRoute) return null;
@@ -94,9 +120,17 @@ export function FloatingTabBar({ state, navigation }: FloatingTabBarProps) {
               key={tab.key}
               icon={tab.icon}
               focused={isFocused}
+              showBadge={tab.key === 'chat' && hasUnreadChats}
               onPress={() => {
                 if (!isFocused) {
-                  navigation.navigate(state.routes[tabIndex].name);
+                  const routeName = state.routes[tabIndex].name;
+                  if (routeName === 'chat') {
+                    navigation.navigate('chat', { screen: 'index' });
+                  } else if (routeName === 'announcements') {
+                    navigation.navigate('announcements', { screen: 'index' });
+                  } else {
+                    navigation.navigate(routeName);
+                  }
                 }
               }}
             />
@@ -140,5 +174,16 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     backgroundColor: '#2563eb',
+  },
+  badgeDot: {
+    position: 'absolute',
+    top: -scale(2),
+    right: -scale(2),
+    width: scale(8),
+    height: scale(8),
+    borderRadius: scale(4),
+    backgroundColor: '#ef4444',
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
   },
 });

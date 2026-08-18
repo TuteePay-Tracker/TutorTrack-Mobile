@@ -22,7 +22,22 @@ export const useNotifications = () => useContext(NotificationContext);
 
 const navigateToRoute = (router: ReturnType<typeof useRouter>, route: string) => {
   try {
-    router.push(route as any);
+    const isChat = route.startsWith('/(main)/chat/') || route.startsWith('/chat/');
+    const isAnnouncement = route.startsWith('/(main)/announcements/') || route.startsWith('/announcements/');
+
+    if (isChat) {
+      router.navigate('/(main)/chat');
+      setTimeout(() => {
+        router.navigate(route as any);
+      }, 100);
+    } else if (isAnnouncement) {
+      router.navigate('/(main)/announcements');
+      setTimeout(() => {
+        router.navigate(route as any);
+      }, 100);
+    } else {
+      router.navigate(route as any);
+    }
   } catch (error) {
     console.warn('Failed to navigate to notification route:', error);
   }

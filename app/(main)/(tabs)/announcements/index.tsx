@@ -78,7 +78,7 @@ export default function AnnouncementsScreen() {
           <Animated.View entering={FadeInDown.delay(index * 40).duration(200)}>
             <AnnouncementCard
               announcement={item}
-              onPress={() => router.push(`/(main)/announcements/${item.id}`)}
+              onPress={() => router.navigate(`/(main)/announcements/${item.id}`)}
             />
           </Animated.View>
         )}
