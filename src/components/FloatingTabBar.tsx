@@ -1,16 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { chatService } from '../services/chatService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scale, verticalScale } from 'react-native-size-matters';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  interpolate,
-} from 'react-native-reanimated';
 
 interface TabDef {
   key: string;
@@ -19,7 +13,7 @@ interface TabDef {
 }
 
 const tabs: TabDef[] = [
-  { key: 'index', label: 'Home', icon: 'view-dashboard' },
+  { key: 'index', label: 'Home', icon: 'home' },
   { key: 'my-children', label: 'Children', icon: 'account-group' },
   { key: 'announcements', label: 'Alerts', icon: 'bullhorn' },
   { key: 'chat', label: 'Chat', icon: 'message-text' },
@@ -32,41 +26,29 @@ interface FloatingTabBarProps {
   descriptors: any;
 }
 
-const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
-
-function TabButton({ icon, focused, showBadge, onPress }: { icon: string; focused: boolean; showBadge?: boolean; onPress: () => void }) {
-  const progress = useSharedValue(focused ? 1 : 0);
-
-  useEffect(() => {
-    progress.value = withSpring(focused ? 1 : 0, { damping: 16, stiffness: 220 });
-  }, [focused, progress]);
-
-  const pillStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(progress.value, [0, 1], [1, 1.08]) }],
-  }));
-
-  const iconStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: interpolate(progress.value, [0, 1], [1, 1.15]) },
-      { translateY: interpolate(progress.value, [0, 1], [0, -1]) },
-    ],
-  }));
+function TabButton({ icon, label, focused, showBadge, onPress }: { icon: string; label: string; focused: boolean; showBadge?: boolean; onPress: () => void }) {
+  const iconName = focused ? icon : `${icon}-outline`;
 
   return (
-    <AnimatedTouchableOpacity
-      style={[styles.tab, focused && styles.activeTab, pillStyle]}
+    <TouchableOpacity
+      style={[styles.tab, focused && styles.activeTab]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <Animated.View style={iconStyle}>
-        <MaterialCommunityIcons
-          name={icon as any}
-          size={scale(20)}
-          color={focused ? '#ffffff' : '#9ca3af'}
-        />
-        {showBadge && <View style={styles.badgeDot} />}
-      </Animated.View>
-    </AnimatedTouchableOpacity>
+      <View style={{ alignItems: 'center' }}>
+        <View style={{ position: 'relative' }}>
+          <MaterialCommunityIcons
+            name={iconName as any}
+            size={scale(18)}
+            color={focused ? '#ffffff' : '#9ca3af'}
+          />
+          {showBadge && <View style={styles.badgeDot} />}
+        </View>
+        <Text style={[styles.labelText, { color: focused ? '#ffffff' : '#9ca3af' }]}>
+          {label}
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -81,15 +63,11 @@ export function FloatingTabBar({ state, navigation }: FloatingTabBarProps) {
       return;
     }
 
-    const unsubscribe = chatService.subscribeToThreads(
+    const unsubscribe = chatService.subscribeToUnreadStatus(
       user.id,
       user.role,
-      (threads) => {
-        const hasAnyUnread = threads.some((thread) => {
-          const count = thread.unreadCount?.[user.id] || 0;
-          return count > 0;
-        });
-        setHasUnreadChats(hasAnyUnread);
+      (hasUnread) => {
+        setHasUnreadChats(hasUnread);
       }
     );
 
@@ -119,6 +97,7 @@ export function FloatingTabBar({ state, navigation }: FloatingTabBarProps) {
             <TabButton
               key={tab.key}
               icon={tab.icon}
+              label={tab.label}
               focused={isFocused}
               showBadge={tab.key === 'chat' && hasUnreadChats}
               onPress={() => {
@@ -144,20 +123,21 @@ export function FloatingTabBar({ state, navigation }: FloatingTabBarProps) {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    left: scale(16),
-    right: scale(16),
+    left: scale(10),
+    right: scale(10),
     alignItems: 'center',
     zIndex: 100,
     elevation: 10,
   },
   bar: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#ffffffee',
     borderRadius: scale(28),
     paddingVertical: verticalScale(8),
     paddingHorizontal: scale(8),
     alignItems: 'center',
     justifyContent: 'space-around',
+    width: '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
@@ -167,13 +147,18 @@ const styles = StyleSheet.create({
   tab: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: verticalScale(8),
-    paddingHorizontal: scale(14),
-    borderRadius: scale(20),
-    minWidth: scale(48),
+    paddingVertical: verticalScale(4),
+    paddingHorizontal: scale(12),
+    borderRadius: scale(24),
+    minWidth: scale(56),
   },
   activeTab: {
     backgroundColor: '#2563eb',
+  },
+  labelText: {
+    fontSize: scale(8),
+    marginTop: verticalScale(2),
+    fontWeight: '500',
   },
   badgeDot: {
     position: 'absolute',

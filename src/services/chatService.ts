@@ -13,11 +13,19 @@ import {
   deleteDoc,
   orderBy,
   limit,
+  startAfter,
+  DocumentSnapshot,
 } from 'firebase/firestore';
 import { db, auth } from './firebaseConfig';
 import { notificationService } from './notificationService';
 import { ChatThread, Message } from '../types/chat';
 import { Tutee } from '../types/tutee';
+
+const MESSAGE_PAGE_SIZE = 30;
+
+function docToMessage(docSnap: DocumentSnapshot): Message {
+  return { id: docSnap.id, ...docSnap.data() } as Message;
+}
 
 export const chatService = {
   subscribeToThreads(
@@ -28,7 +36,11 @@ export const chatService = {
   ): () => void {
     const chatsRef = collection(db, 'chats');
     const field = role === 'tutor' ? 'tutorId' : 'parentId';
-    const q = query(chatsRef, where(field, '==', userId));
+    const q = query(
+      chatsRef,
+      where(field, '==', userId),
+      orderBy('lastMessageTimestamp', 'desc')
+    );
 
     return onSnapshot(
       q,
@@ -38,12 +50,6 @@ export const chatService = {
           ...docSnap.data(),
         })) as ChatThread[];
 
-        threads.sort((a, b) => {
-          const aTime = a.lastMessageTimestamp?.toDate?.() || new Date(0);
-          const bTime = b.lastMessageTimestamp?.toDate?.() || new Date(0);
-          return bTime.getTime() - aTime.getTime();
-        });
-
         callback(threads);
       },
       (error) => {
@@ -52,24 +58,67 @@ export const chatService = {
     );
   },
 
-  subscribeToMessages(chatId: string, callback: (messages: Message[]) => void): () => void {
+  async fetchInitialMessages(chatId: string): Promise<Message[]> {
     const messagesRef = collection(db, 'chats', chatId, 'messages');
-    const q = query(messagesRef);
+    const q = query(
+      messagesRef,
+      orderBy('timestamp', 'desc'),
+      limit(MESSAGE_PAGE_SIZE)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docToMessage);
+  },
+
+  subscribeToUnreadStatus(
+    userId: string,
+    role: string,
+    callback: (hasUnread: boolean) => void
+  ): () => void {
+    const chatsRef = collection(db, 'chats');
+    const field = role === 'tutor' ? 'tutorId' : 'parentId';
+    const unreadField = `unreadCount.${userId}`;
+    const q = query(
+      chatsRef,
+      where(field, '==', userId),
+      where(unreadField, '>', 0),
+      limit(1)
+    );
 
     return onSnapshot(q, (snapshot) => {
-      const messages = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      })) as Message[];
+      callback(!snapshot.empty);
+    });
+  },
 
-      messages.sort((a, b) => {
-        const aTime = a.timestamp?.toDate?.() || new Date(0);
-        const bTime = b.timestamp?.toDate?.() || new Date(0);
-        return aTime.getTime() - bTime.getTime();
-      });
+  subscribeToLatestMessages(
+    chatId: string,
+    callback: (messages: Message[]) => void
+  ): () => void {
+    const messagesRef = collection(db, 'chats', chatId, 'messages');
+    const q = query(
+      messagesRef,
+      orderBy('timestamp', 'desc'),
+      limit(MESSAGE_PAGE_SIZE)
+    );
 
+    return onSnapshot(q, (snapshot) => {
+      const messages = snapshot.docs.map(docToMessage);
       callback(messages);
     });
+  },
+
+  async fetchOlderMessages(
+    chatId: string,
+    beforeTimestamp: any
+  ): Promise<Message[]> {
+    const messagesRef = collection(db, 'chats', chatId, 'messages');
+    const q = query(
+      messagesRef,
+      orderBy('timestamp', 'desc'),
+      startAfter(beforeTimestamp),
+      limit(MESSAGE_PAGE_SIZE)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docToMessage);
   },
 
   async sendMessage(
@@ -77,17 +126,26 @@ export const chatService = {
     senderId: string,
     senderName: string,
     text: string,
-    recipientId: string
+    recipientId: string,
+    replyTo?: { id: string; text: string; senderName: string }
   ): Promise<void> {
     const messagesRef = collection(db, 'chats', chatId, 'messages');
 
-    await addDoc(messagesRef, {
+    const messageData: any = {
       senderId,
       senderName,
       text,
       timestamp: Timestamp.now(),
       status: 'sent',
-    });
+    };
+
+    if (replyTo) {
+      messageData.replyToId = replyTo.id;
+      messageData.replyToText = replyTo.text;
+      messageData.replyToSenderName = replyTo.senderName;
+    }
+
+    await addDoc(messagesRef, messageData);
 
     const threadDoc = await getDoc(doc(db, 'chats', chatId));
     const currentUnread = threadDoc.data()?.unreadCount?.[recipientId] || 0;
@@ -100,7 +158,6 @@ export const chatService = {
       [`unreadCount.${recipientId}`]: currentUnread + 1,
     });
 
-    // Fire-and-forget push to the receiver only (never the sender).
     notificationService
       .sendChatNotification(recipientId, senderName, text, chatId)
       .catch((error) => console.warn('Failed to send chat push:', error));
@@ -119,6 +176,8 @@ export const chatService = {
     );
 
     const snapshot = await getDocs(unreadQuery);
+    if (snapshot.empty) return;
+
     const batch = writeBatch(db);
     snapshot.docs.forEach((docSnap) => {
       batch.update(docSnap.ref, { status: 'seen' });

@@ -20,4 +20,7 @@ export interface Message {
   text: string;
   timestamp: any;
   status: 'sent' | 'seen';
+  replyToId?: string;
+  replyToText?: string;
+  replyToSenderName?: string;
 }

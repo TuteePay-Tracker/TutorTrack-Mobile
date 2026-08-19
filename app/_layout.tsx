@@ -76,18 +76,22 @@ function RootLayoutNav() {
   );
 }
 
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
 export default function RootLayout() {
   return (
-    <PaperProvider theme={stripLetterSpacing(theme)}>
-      <SafeAreaProvider>
-        <AuthProvider>
-          <NotificationProvider>
-            <RootLayoutNav />
-            <StatusBar style="dark" />
-          </NotificationProvider>
-        </AuthProvider>
-      </SafeAreaProvider>
-    </PaperProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <PaperProvider theme={stripLetterSpacing(theme)}>
+        <SafeAreaProvider>
+          <AuthProvider>
+            <NotificationProvider>
+              <RootLayoutNav />
+              <StatusBar style="dark" />
+            </NotificationProvider>
+          </AuthProvider>
+        </SafeAreaProvider>
+      </PaperProvider>
+    </GestureHandlerRootView>
   );
 }
 
