@@ -1,8 +1,8 @@
 import { File } from 'expo-file-system';
 
-const CLOUDINARY_CLOUD_NAME = 'dndekbare';
-const CLOUDINARY_UPLOAD_PRESET = 'tuteepay_uploads';
-const CLOUDINARY_API_KEY = '885611659878567';
+const CLOUDINARY_CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dndekbare';
+const CLOUDINARY_UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'tuteepay_uploads';
+const CLOUDINARY_API_KEY = process.env.EXPO_PUBLIC_CLOUDINARY_API_KEY || '885611659878567';
 
 export const uploadToCloudinary = async (
   fileUri: string,
