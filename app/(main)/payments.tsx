@@ -157,7 +157,7 @@ export default function PaymentsScreen() {
         title: focusedTutee ? `${focusedTutee.firstName}'s Payments` : 'Payments',
         headerTintColor: '#2563eb',
         headerShadowVisible: false,
-        headerStyle: { backgroundColor: '#f9fafb' },
+        headerStyle: { backgroundColor: '#eff6ff' },
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
             <MaterialCommunityIcons name="chevron-left" size={28} color="#2563eb" />
@@ -311,7 +311,7 @@ export default function PaymentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
+  container: { flex: 1, backgroundColor: '#eff6ff' },
   content: { padding: 16, paddingBottom: 110 },
   summaryCard: { marginBottom: 20, borderRadius: 16, elevation: 2, backgroundColor: '#2563eb' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 16 },
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
   submitPaymentContent: { paddingVertical: 4 },
   submitPaymentLabel: { fontWeight: '800', fontSize: 15 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 10, marginTop: 4 },
-  childCard: { marginBottom: 8, borderRadius: 12, elevation: 1 },
+  childCard: { marginBottom: 8, borderRadius: 12, elevation: 1, backgroundColor: '#ffffff' },
   childCardClickable: { borderColor: '#2563eb', borderWidth: 1 },
   childRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   childLeft: { flex: 1 },
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   paidText: { fontSize: 13, fontWeight: '600', color: '#059669' },
   paidFullText: { fontSize: 13, fontWeight: '700', color: '#059669', marginTop: 2 },
   balanceText: { fontSize: 13, fontWeight: '700', color: '#dc2626', marginTop: 2 },
-  txnCard: { marginBottom: 8, borderRadius: 12, elevation: 1 },
+  txnCard: { marginBottom: 8, borderRadius: 12, elevation: 1, backgroundColor: '#ffffff' },
   txnRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   txnLeft: { flex: 1 },
   txnAmountRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

@@ -165,7 +165,7 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#eff6ff',
   },
   content: {
     padding: 20,
@@ -180,6 +180,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     elevation: 2,
+    backgroundColor: '#ffffff',
   },
   sectionTitle: {
     fontWeight: '600',

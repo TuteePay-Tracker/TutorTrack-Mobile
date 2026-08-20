@@ -718,7 +718,7 @@ export default function PaymentProofScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  container: { flex: 1, backgroundColor: '#f9fafb' },
+  container: { flex: 1, backgroundColor: '#eff6ff' },
   content: { padding: 16, paddingBottom: 40 },
 
   headerBanner: {
@@ -842,7 +842,7 @@ const styles = StyleSheet.create({
   detailsCard: {
     borderRadius: 12,
     marginBottom: 20,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#ffffff',
     borderColor: '#e5e7eb',
     borderWidth: 1,
   },

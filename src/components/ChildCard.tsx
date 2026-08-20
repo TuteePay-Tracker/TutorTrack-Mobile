@@ -39,8 +39,8 @@ export const ChildCard = ({ tutee, metrics, onPress }: ChildCardProps) => {
   };
 
   return (
-    <ScaleOnPress onPress={onPress} style={styles.card}>
-      <Card>
+    <ScaleOnPress onPress={onPress} style={styles.cardWrapper}>
+      <Card style={styles.card}>
         <Card.Content>
         <View style={styles.header}>
           {tutee.photoUrl ? (
@@ -91,7 +91,7 @@ export const ChildCard = ({ tutee, metrics, onPress }: ChildCardProps) => {
             <Text style={styles.paymentLabel}>Balance</Text>
           </View>
           <View style={[styles.paymentBox, {
-            backgroundColor: metrics.paymentStatus === 'Paid' ? '#ecfdf5' : metrics.paymentStatus === 'Partial' ? '#fff7ed' : '#f9fafb'
+            backgroundColor: metrics.paymentStatus === 'Paid' ? '#ecfdf5' : metrics.paymentStatus === 'Partial' ? '#fff7ed' : '#ffffff'
           }]}>
             <Text style={[styles.paymentStatus, {
               color: metrics.paymentStatus === 'Paid' ? '#059669' : metrics.paymentStatus === 'Partial' ? '#ea580c' : '#9ca3af'
@@ -120,10 +120,13 @@ export const ChildCard = ({ tutee, metrics, onPress }: ChildCardProps) => {
 };
 
 const styles = StyleSheet.create({
-  card: {
+  cardWrapper: {
     marginBottom: 16,
+  },
+  card: {
     borderRadius: 16,
     elevation: 1,
+    backgroundColor: '#ffffff',
   },
   header: {
     flexDirection: 'row',
@@ -221,7 +224,7 @@ const styles = StyleSheet.create({
   },
   scheduleSection: {
     flexDirection: 'row',
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#ffffff',
     padding: 10,
     borderRadius: 12,
     marginBottom: 12,

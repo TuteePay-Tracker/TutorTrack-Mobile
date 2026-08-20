@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { Text, Searchbar, Avatar, Badge, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useTabBarHeight } from '../../../../src/hooks/useTabBarHeight';
 import { useAuth } from '../../../../src/hooks/useAuth';
 import { useTutees } from '../../../../src/hooks/useTutees';
@@ -105,9 +106,10 @@ export default function ChatThreadListScreen() {
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [creatingThread, setCreatingThread] = useState<string | null>(null);
 
-  useEffect(() => {
+  const subscribeToThreads = useCallback(() => {
     if (!user) return;
 
     const unsubscribe = chatService.subscribeToThreads(
@@ -116,11 +118,26 @@ export default function ChatThreadListScreen() {
       (updatedThreads) => {
         setThreads(updatedThreads);
         setLoading(false);
+        setRefreshing(false);
+      },
+      (error) => {
+        console.error('Thread subscription error:', error);
+        setLoading(false);
+        setRefreshing(false);
       }
     );
 
-    return () => unsubscribe();
+    return unsubscribe;
   }, [user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const unsubscribe = subscribeToThreads();
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
+    }, [subscribeToThreads])
+  );
 
   const [tuteePhotos, setTuteePhotos] = useState<Record<string, string>>({});
   const fetchedPhotosRef = useRef<Set<string>>(new Set());
@@ -313,6 +330,7 @@ export default function ChatThreadListScreen() {
           headerShown: true,
           title: 'Messages',
           headerTintColor: '#2563eb',
+          headerStyle: { backgroundColor: '#eff6ff' },
         }}
       />
       <View style={styles.container}>
@@ -335,6 +353,17 @@ export default function ChatThreadListScreen() {
             renderItem={renderThreadItem}
             contentContainerStyle={{ paddingBottom: tabBarHeight }}
             ListHeaderComponent={ListHeader}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => {
+                  setRefreshing(true);
+                  subscribeToThreads();
+                }}
+                colors={['#2563eb']}
+                tintColor="#2563eb"
+              />
+            }
             ListEmptyComponent={
               <View style={styles.centered}>
                 <MaterialCommunityIcons name="chat-outline" size={scale(56)} color="#d1d5db" />
@@ -347,7 +376,6 @@ export default function ChatThreadListScreen() {
               </View>
             }
             ItemSeparatorComponent={() => <View style={styles.separator} />}
-            removeClippedSubviews
           />
         )}
       </View>
@@ -358,13 +386,13 @@ export default function ChatThreadListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#eff6ff',
   },
   searchbar: {
     margin: scale(12),
     borderRadius: scale(12),
     elevation: 0,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#ffffff',
   },
   searchbarInput: {
     fontSize: moderateScale(15),

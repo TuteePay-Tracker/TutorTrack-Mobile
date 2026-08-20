@@ -90,6 +90,8 @@ export default function ChatScreen() {
   const oldestTimestampRef = useRef<any>(null);
   const isLoadingOlderRef = useRef(false);
 
+  const latestMessagesRef = useRef<Message[]>([]);
+
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
@@ -97,6 +99,10 @@ export default function ChatScreen() {
   const allMessages = useMemo(() => {
     return [...olderMessages, ...latestMessages];
   }, [olderMessages, latestMessages]);
+
+  useEffect(() => {
+    latestMessagesRef.current = latestMessages;
+  }, [latestMessages]);
 
   const reversedMessages = useMemo(() => {
     const reversed = [];
@@ -233,7 +239,7 @@ export default function ChatScreen() {
 
       setOlderMessages((prev) => {
         const existingIds = new Set(prev.map((m) => m.id));
-        const existingLatestIds = new Set(latestMessages.map((m) => m.id));
+        const existingLatestIds = new Set(latestMessagesRef.current.map((m) => m.id));
         const deduped = sortedAsc.filter(
           (m) => !existingIds.has(m.id) && !existingLatestIds.has(m.id)
         );
@@ -251,7 +257,7 @@ export default function ChatScreen() {
       setLoadingOlder(false);
       isLoadingOlderRef.current = false;
     }
-  }, [chatId, hasMore, latestMessages]);
+  }, [chatId, hasMore]);
 
   useEffect(() => {
     if (!chatId) return;
@@ -596,13 +602,13 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#eff6ff',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#eff6ff',
   },
   loadingText: {
     marginTop: verticalScale(12),

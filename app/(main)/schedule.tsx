@@ -147,7 +147,7 @@ export default function ScheduleScreen() {
         title: '',
         headerTintColor: '#2563eb',
         headerShadowVisible: false,
-        headerStyle: { backgroundColor: '#f9fafb' },
+        headerStyle: { backgroundColor: '#eff6ff' },
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
             <MaterialCommunityIcons name="chevron-left" size={28} color="#2563eb" />
@@ -195,9 +195,9 @@ export default function ScheduleScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
+  container: { flex: 1, backgroundColor: '#eff6ff' },
   content: { padding: 16, paddingBottom: 110 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#eff6ff' },
   weekSection: { marginBottom: 20 },
   weekTitle: {
     fontSize: 14,
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  card: { marginBottom: 8, borderRadius: 12, elevation: 1 },
+  card: { marginBottom: 8, borderRadius: 12, elevation: 1, backgroundColor: '#ffffff' },
   cardContent: {
     flexDirection: 'row',
     alignItems: 'center',

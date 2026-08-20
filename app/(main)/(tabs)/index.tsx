@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   TouchableOpacity,
+  Modal,
 } from 'react-native';
 import { Text, Card } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -22,26 +23,58 @@ import { assessmentService } from '../../../src/services/assessmentService';
 import { announcementService } from '../../../src/services/announcementService';
 import { Announcement } from '../../../src/types/announcement';
 import { Assessment } from '../../../src/types/assessment';
-import { KpiCard } from '../../../src/components/KpiCard';
 import { EmptyState } from '../../../src/components/EmptyState';
-import { ScaleOnPress } from '../../../src/components/ScaleOnPress';
-import { AnimatedBar } from '../../../src/components/AnimatedBar';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-
-const CHART_COLORS = ['#2563eb', '#f59e0b', '#3b82f6'];
+import Svg, { Circle } from 'react-native-svg';
+import { AnimatedBar } from '../../../src/components/AnimatedBar';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../../src/services/firebaseConfig';
 
 const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/** Returns the current school year label (Philippine: June–May convention). */
+function getCurrentSchoolYearLabel(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1; // 1-indexed
+  const startYear = month >= 6 ? year : year - 1;
+  const endYear = startYear + 1;
+  return `SY ${startYear}–${String(endYear).slice(-2)}`;
+}
+
 
 function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll: () => void }) {
   return (
     <TouchableOpacity style={styles.sectionHeaderRow} onPress={onSeeAll} activeOpacity={0.7}>
       <Text style={styles.sectionTitle}>{title}</Text>
       <View style={styles.seeAllRow}>
-        <Text style={styles.seeAllText}>See All</Text>
-        <MaterialCommunityIcons name="chevron-right" size={18} color="#2563eb" />
+        <Text style={styles.seeAllText}>See all</Text>
+        <MaterialCommunityIcons name="arrow-right" size={16} color="#2563eb" />
       </View>
     </TouchableOpacity>
   );
+}
+
+function getGradeLetter(score: number): string {
+  if (score >= 95) return 'A+';
+  if (score >= 90) return 'A';
+  if (score >= 85) return 'A-';
+  if (score >= 80) return 'B+';
+  if (score >= 75) return 'B';
+  if (score >= 70) return 'B-';
+  if (score >= 65) return 'C+';
+  if (score >= 60) return 'C';
+  if (score >= 50) return 'D';
+  return 'F';
+}
+
+function getRoomForSubject(subjectName: string): string {
+  const sub = (subjectName || '').toLowerCase();
+  if (sub.includes('math')) return 'Rm 12';
+  if (sub.includes('sci')) return 'Lab A';
+  if (sub.includes('hist')) return 'Rm 6';
+  if (sub.includes('eng')) return 'Rm 3';
+  return 'Rm 1';
 }
 
 export default function ParentDashboard() {
@@ -55,8 +88,15 @@ export default function ParentDashboard() {
   const [verifiedPayments, setVerifiedPayments] = useState<Record<string, number>>({});
   const [attendance, setAttendance] = useState<Record<string, { presentCount: number; totalSessions: number }>>({});
   const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [tutorName, setTutorName] = useState<string>('Tutor');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const [selectedDay, setSelectedDay] = useState<string>(() => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const currentDay = days[new Date().getDay()];
+    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(currentDay) ? currentDay : 'Mon';
+  });
 
   const tutorId = user?.createdByTutorId || '';
 
@@ -67,6 +107,15 @@ export default function ParentDashboard() {
     }
 
     const tuteeIds = tutees.map((t) => t.id);
+
+    // Fetch tutor name
+    getDoc(doc(db, 'users', tutorId))
+      .then((docSnap) => {
+        if (docSnap.exists()) {
+          setTutorName(docSnap.data()?.name || 'Tutor');
+        }
+      })
+      .catch((err) => console.error('Error fetching tutor name:', err));
 
     const unsubAnnouncements = announcementService.subscribe(tutorId, (data: Announcement[]) => {
       setAnnouncements(data);
@@ -85,7 +134,6 @@ export default function ParentDashboard() {
           setPayments((prev) => ({ ...prev, [tutee.id]: total }));
         })
       );
-      // Also subscribe to verified parent proof payments
       unsubPayments.push(
         paymentService.subscribeVerifiedAmountByTutee(tutorId, tutee.id, (verified: number) => {
           setVerifiedPayments((prev) => ({ ...prev, [tutee.id]: verified }));
@@ -118,6 +166,27 @@ export default function ParentDashboard() {
     setTimeout(() => setRefreshing(false), 1000);
   }, []);
 
+  const getWeekRangeLabel = () => {
+    const today = new Date();
+    const first = today.getDate() - today.getDay() + 1; // Monday
+    const last = first + 4; // Friday
+    const monday = new Date(today.setDate(first));
+    const friday = new Date(today.setDate(last));
+    const monMonth = monday.toLocaleString('default', { month: 'short' });
+    const friMonth = friday.toLocaleString('default', { month: 'short' });
+    if (monMonth === friMonth) {
+      return `${monMonth} ${monday.getDate()}-${friday.getDate()}`;
+    } else {
+      return `${monMonth} ${monday.getDate()} - ${friMonth} ${friday.getDate()}`;
+    }
+  };
+
+  const getDueDateLabel = () => {
+    const today = new Date();
+    today.setDate(15);
+    return `DUE ${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}`;
+  };
+
   if (tuteesLoading || loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -147,317 +216,356 @@ export default function ParentDashboard() {
     );
   }
 
-  // Total Paid = tutor cash records (paymentTransactions) + verified parent proof payments (payments)
-  const totalPaid = Math.round(tutees.reduce((sum, tutee) =>
-    sum + (payments[tutee.id] || 0) + (verifiedPayments[tutee.id] || 0), 0));
-
-  const totalOutstanding = Math.round(tutees.reduce((sum, tutee) => {
-    const paid = (payments[tutee.id] || 0) + (verifiedPayments[tutee.id] || 0);
-    const due = (tutee.totalSessions || 0) * (tutee.ratePerSession || 0);
-    return sum + Math.max(due - paid, 0);
-  }, 0));
-
-  let totalAttended = 0;
+  // Redesign: Combined statistics for all children
+  let totalPresent = 0;
   let totalSessions = 0;
-  Object.values(attendance).forEach((att) => {
-    totalAttended += att.presentCount;
-    totalSessions += att.totalSessions;
+  tutees.forEach((t) => {
+    const attData = attendance[t.id] || { presentCount: 0, totalSessions: 0 };
+    totalPresent += attData.presentCount;
+    totalSessions += attData.totalSessions;
   });
-  const attendanceRate = totalSessions > 0 ? Math.round((totalAttended / totalSessions) * 100) : 100;
+  const attendanceRate = totalSessions > 0 ? Math.round((totalPresent / totalSessions) * 100) : 100;
+  const absentCount = totalSessions - totalPresent;
 
-  const hasAttendance = tutees.some((t) => (attendance[t.id]?.totalSessions || 0) > 0);
+  const avgScore = assessments.length > 0
+    ? Math.round((assessments.reduce((sum, a) => sum + (a.score || 0), 0) / assessments.length) * 10) / 10
+    : 0;
+
+  const subjectTuteeAverages: Record<string, { sum: number; count: number; tuteeName: string; subject: string; tuteeId: string }> = {};
+  assessments.forEach((a) => {
+    const sub = a.subject || 'General';
+    const key = `${a.tuteeId}_${sub}`;
+    if (!subjectTuteeAverages[key]) {
+      subjectTuteeAverages[key] = {
+        sum: 0,
+        count: 0,
+        tuteeName: a.tuteeName || 'Child',
+        subject: sub,
+        tuteeId: a.tuteeId,
+      };
+    }
+    subjectTuteeAverages[key].sum += a.score || 0;
+    subjectTuteeAverages[key].count += 1;
+  });
+  const subjectTuteeKeys = Object.keys(subjectTuteeAverages);
+
+  const totalPaid = Math.round(tutees.reduce((sum, t) => sum + (payments[t.id] || 0) + (verifiedPayments[t.id] || 0), 0));
+  const totalOutstanding = Math.max(Math.round(tutees.reduce((sum, t) => {
+    const paid = (payments[t.id] || 0) + (verifiedPayments[t.id] || 0);
+    const due = (t.totalSessions || 0) * (t.ratePerSession || 0);
+    return sum + Math.max(due - paid, 0);
+  }, 0)), 0);
 
   const latestAnnouncement = announcements.length > 0 ? announcements[0] : null;
-
-  const recentAssessments = [...assessments]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 3);
-
-  const monthlyScores: Record<string, Record<string, number[]>> = {};
-  tutees.forEach((tutee) => {
-    monthlyScores[tutee.id] = {};
-  });
-  assessments.forEach((a) => {
-    if (!monthlyScores[a.tuteeId]) return;
-    const month = new Date(a.date).toLocaleString('default', { month: 'short' });
-    if (!monthlyScores[a.tuteeId][month]) {
-      monthlyScores[a.tuteeId][month] = [];
-    }
-    monthlyScores[a.tuteeId][month].push(a.score || 0);
-  });
-
-  const months = Array.from(
-    new Set(assessments.map((a) => new Date(a.date).toLocaleString('default', { month: 'short' })))
-  ).slice(-6);
-
-  const subjectTotals: Record<string, { sum: number; count: number }> = {};
-  assessments.forEach((a) => {
-    const subject = a.subject || 'General';
-    if (!subjectTotals[subject]) subjectTotals[subject] = { sum: 0, count: 0 };
-    subjectTotals[subject].sum += a.score || 0;
-    subjectTotals[subject].count += 1;
-  });
-
-  const subjectLabels = Object.keys(subjectTotals).slice(0, 3);
 
   const allSchedule: any[] = [];
   tutees.forEach((tutee) => {
     if (tutee.schedule && Array.isArray(tutee.schedule)) {
       tutee.schedule.forEach((s: any) => {
-        allSchedule.push({ ...s, tuteeName: tutee.firstName || 'Child' });
+        allSchedule.push({ ...s, tuteeName: tutee.firstName, tuteeId: tutee.id, mainSubject: tutee.subject });
       });
     }
   });
-  const sortedSchedule = allSchedule.sort((a, b) => {
-    const aIdx = dayOrder.indexOf(a.day);
-    const bIdx = dayOrder.indexOf(b.day);
-    return (aIdx === -1 ? 7 : aIdx) - (bIdx === -1 ? 7 : bIdx);
+
+  const selectedDaySessions = allSchedule.filter((s: any) => {
+    if (!s || typeof s !== 'object') return false;
+    const day = s.day || '';
+    const abbr = day.slice(0, 3);
+    const orderAbbr = selectedDay.slice(0, 3);
+    return abbr.toLowerCase() === orderAbbr.toLowerCase() || day.toLowerCase() === selectedDay.toLowerCase();
   });
+  const sortedDaySessions = [...selectedDaySessions].sort((a: any, b: any) => {
+    const timeA = a.startTime || a.time || '';
+    const timeB = b.startTime || b.time || '';
+    return timeA.localeCompare(timeB);
+  });
+
+  const totalChildren = tutees.length;
+  const childInitial = totalChildren.toString();
+  const gradeLabel = totalChildren === 1
+    ? (tutees[0]?.gradeLevel || '1 Enrolled Student')
+    : `${totalChildren} Enrolled Students`;
 
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.contentContainer, { paddingTop: insets.top + 16, paddingBottom: tabBarHeight }]}
+      contentContainerStyle={[styles.contentContainer, { paddingTop: insets.top + 16, paddingBottom: tabBarHeight + 16 }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563eb']} />}
     >
-      <Text style={styles.headerTitle}>Parent Dashboard</Text>
+      {/* Redesigned Header Layout */}
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.headerGreeting}>Good morning,</Text>
+          <Text style={styles.headerName}>{user.name || 'Parent'}</Text>
+        </View>
+      </View>
 
-      {latestAnnouncement && (
-        <ScaleOnPress
-          onPress={() => router.navigate(`/(main)/announcements/${latestAnnouncement.id}`)}
-          entering={FadeInDown.duration(200)}
-        >
-          <Card style={styles.announcementCard}>
-            <Card.Content>
-              <View style={styles.announcementHeader}>
-                <MaterialCommunityIcons name="bullhorn-outline" size={20} color="#92400e" />
-                <Text style={styles.announcementTitle}>Latest Announcement</Text>
+      {/* Redesigned Child details banner */}
+      <Card style={styles.childBannerCard}>
+        <Card.Content style={styles.childBannerContent}>
+          <View style={styles.childAvatarCircle}>
+            <Text style={styles.childAvatarText}>{childInitial}</Text>
+          </View>
+          <View style={styles.childBannerInfo}>
+            <Text style={styles.childBannerName}>
+              Linked {totalChildren === 1 ? 'Student' : 'Students'}
+            </Text>
+            <Text style={styles.childBannerGrade}>
+              {gradeLabel}
+            </Text>
+          </View>
+          <View style={styles.enrolledBadge}>
+            <Text style={styles.enrolledBadgeText}>ENROLLED</Text>
+          </View>
+        </Card.Content>
+      </Card>
+
+      {/* Redesigned 2x2 KPI Grid */}
+      <View style={styles.kpiGrid}>
+        <View style={styles.kpiItem}>
+          <Card style={styles.kpiCardCustom}>
+            <Card.Content style={styles.kpiCardContentCustom}>
+              <View style={[styles.kpiDot, { backgroundColor: '#10b981' }]} />
+              <View>
+                <Text style={[styles.kpiValueCustom, { color: '#10b981' }]}>{attendanceRate}%</Text>
+                <Text style={styles.kpiTitleCustom}>Attendance</Text>
               </View>
-              <Text style={styles.announcementSubject}>{latestAnnouncement.title}</Text>
-              <Text style={styles.announcementBody} numberOfLines={3}>
-                {latestAnnouncement.content}
+              <Text style={styles.kpiFooterCustom}>
+                {new Date().toLocaleString('default', { month: 'short', year: 'numeric' })}
               </Text>
             </Card.Content>
           </Card>
-        </ScaleOnPress>
-      )}
+        </View>
 
-      <View style={styles.kpiGrid}>
-        <Animated.View style={styles.kpiItem} entering={FadeInDown.duration(200)}>
-          <KpiCard
-            title="Linked Children"
-            value={tutees.length.toString()}
-            icon="account-child-outline"
-            color="#2563eb"
-            bgColor="#dbeafe"
-          />
-        </Animated.View>
-        <Animated.View style={styles.kpiItem} entering={FadeInDown.delay(60).duration(200)}>
-          <KpiCard
-            title="Total Paid"
-            value={formatCurrency(totalPaid)}
-            icon="cash-check"
-            color="#2563eb"
-            bgColor="#dbeafe"
-          />
-        </Animated.View>
-        <Animated.View style={styles.kpiItem} entering={FadeInDown.delay(60).duration(200)}>
-          <KpiCard
-            title="Outstanding"
-            value={formatCurrency(totalOutstanding)}
-            icon="cash-remove"
-            color="#dc2626"
-            bgColor="#fef2f2"
-          />
-        </Animated.View>
-        <Animated.View style={styles.kpiItem} entering={FadeInDown.delay(120).duration(200)}>
-          <KpiCard
-            title="Attendance"
-            value={`${attendanceRate}%`}
-            icon="check-circle-outline"
-            color="#2563eb"
-            bgColor="#dbeafe"
-          />
-        </Animated.View>
+        <View style={styles.kpiItem}>
+          <Card style={styles.kpiCardCustom}>
+            <Card.Content style={styles.kpiCardContentCustom}>
+              <View style={[styles.kpiDot, { backgroundColor: '#f59e0b' }]} />
+              <View>
+                <Text style={[styles.kpiValueCustom, { color: '#d97706' }]}>{avgScore > 0 ? avgScore : '--'}</Text>
+                <Text style={styles.kpiTitleCustom}>Avg Score</Text>
+              </View>
+              <Text style={styles.kpiFooterCustom}>
+                {subjectTuteeKeys.length} {subjectTuteeKeys.length === 1 ? 'subject score' : 'subject scores'}
+              </Text>
+            </Card.Content>
+          </Card>
+        </View>
+
+        <View style={styles.kpiItem}>
+          <Card style={styles.kpiCardCustom}>
+            <Card.Content style={styles.kpiCardContentCustom}>
+              <View style={[styles.kpiDot, { backgroundColor: '#3b82f6' }]} />
+              <View>
+                <Text style={[styles.kpiValueCustom, { color: '#10b981' }]}>{formatCurrency(totalPaid)}</Text>
+                <Text style={styles.kpiTitleCustom}>Total Paid</Text>
+              </View>
+              <Text style={styles.kpiFooterCustom}>{getCurrentSchoolYearLabel()}</Text>
+            </Card.Content>
+          </Card>
+        </View>
+
+        <View style={styles.kpiItem}>
+          <Card style={styles.kpiCardCustom}>
+            <Card.Content style={styles.kpiCardContentCustom}>
+              <View style={[styles.kpiDot, { backgroundColor: '#ef4444' }]} />
+              <View>
+                <Text style={[styles.kpiValueCustom, { color: '#ef4444' }]}>{formatCurrency(totalOutstanding)}</Text>
+                <Text style={styles.kpiTitleCustom}>Balance Due</Text>
+              </View>
+              <Text style={styles.kpiFooterCustom}>
+                {totalChildren > 1 ? 'Combined rate' : (tutees[0].lastPaymentDate
+                  ? `Paid ${new Date(tutees[0].lastPaymentDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                  : 'Monthly tuition')}
+              </Text>
+            </Card.Content>
+          </Card>
+        </View>
       </View>
 
-      {assessments.length > 0 && (
-        <>
-          <SectionHeader title="Monthly Scores" onSeeAll={() => router.push('/(main)/assessments')} />
-          <Animated.View entering={FadeInDown.duration(250)}>
-            <Card style={styles.chartCard}>
-              <Card.Content>
-                <View style={styles.vBarChart}>
-                <View style={styles.vBarChartArea}>
-                  {months.map((month, mIdx) => (
-                    <View key={month} style={styles.vBarGroup}>
-                      <View style={styles.vBarGroupBars}>
-        {tutees.slice(0, 3).map((tutee, tIdx) => {
-          const scores = monthlyScores[tutee.id]?.[month] || [];
-          const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
-          const height = Math.max((avg / 100) * 140, avg > 0 ? 4 : 0);
+      {/* Redesigned Tuition/Outstanding Balance Banner Card */}
+      <Card style={styles.tuitionBannerCard}>
+        <Card.Content style={styles.tuitionBannerContent}>
+          <View style={styles.tuitionBannerLeft}>
+            <Text style={styles.tuitionDueDate}>{getDueDateLabel()}</Text>
+            <Text style={styles.tuitionAmount}>{formatCurrency(totalOutstanding)}</Text>
+            <Text style={styles.tuitionLabel}>Monthly Tuition</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.payNowButton}
+            onPress={() => router.push('/(main)/payments')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.payNowButtonText}>Pay Now</Text>
+          </TouchableOpacity>
+        </Card.Content>
+      </Card>
+
+      {/* Redesigned Weekly Schedule Layout */}
+      <View style={styles.scheduleHeaderRow}>
+        <Text style={styles.sectionTitle}>Weekly Schedule</Text>
+        <Text style={styles.scheduleDateRange}>{getWeekRangeLabel()}</Text>
+      </View>
+      <View style={styles.daysRow}>
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((day) => {
+          const isActive = selectedDay === day;
           return (
-            <AnimatedBar
-              key={tutee.id}
-              axis="vertical"
-              height={height}
-              backgroundColor={CHART_COLORS[tIdx % CHART_COLORS.length]}
-              style={styles.vBar}
-              delay={mIdx * 80 + tIdx * 60}
-            />
+            <TouchableOpacity
+              key={day}
+              style={[styles.dayTab, isActive && styles.dayTabActive]}
+              onPress={() => setSelectedDay(day)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.dayTabText, isActive && styles.dayTabTextActive]}>{day}</Text>
+            </TouchableOpacity>
           );
         })}
-                      </View>
-                      <Text style={styles.vBarLabel}>{month}</Text>
-                    </View>
-                  ))}
-                </View>
-                <View style={styles.vBarLegend}>
-                  {tutees.slice(0, 3).map((t, tIdx) => (
-                    <View key={t.id} style={styles.legendItem}>
-                      <View style={[styles.legendDot, { backgroundColor: CHART_COLORS[tIdx % CHART_COLORS.length] }]} />
-                      <Text style={styles.legendText}>{t.firstName || 'Child'}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-              </Card.Content>
-            </Card>
-          </Animated.View>
-        </>
-      )}
+      </View>
 
-      {subjectLabels.length > 0 && (
-        <>
-          <SectionHeader title="Subject Averages" onSeeAll={() => router.push('/(main)/assessments')} />
-          <Animated.View entering={FadeInDown.duration(250)}>
-            <Card style={styles.chartCard}>
-              <Card.Content>
-                <View style={styles.hBarChart}>
-                  {subjectLabels.map((subject, idx) => {
-                    const avg = Math.round(subjectTotals[subject].sum / subjectTotals[subject].count);
-                    return (
-                      <View key={subject} style={styles.hBarRow}>
-                        <Text style={styles.hBarLabel}>{subject.length > 10 ? subject.slice(0, 10) + '...' : subject}</Text>
-                        <View style={styles.hBarTrack}>
-                          <AnimatedBar
-                            axis="horizontal"
-                            width={`${Math.max(avg, 2)}%`}
-                            backgroundColor={avg >= 70 ? '#2563eb' : avg >= 50 ? '#f59e0b' : '#dc2626'}
-                            style={styles.hBarFill}
-                            delay={idx * 80}
-                          />
-                        </View>
-                        <Text style={styles.hBarValue}>{avg}%</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </Card.Content>
-            </Card>
-          </Animated.View>
-        </>
-      )}
-
-      <SectionHeader title="Recent Assessments" onSeeAll={() => router.push('/(main)/assessments')} />
-      {recentAssessments.length === 0 ? (
-        <Card style={styles.card}>
+      {sortedDaySessions.length === 0 ? (
+        <Card style={styles.emptyScheduleCard}>
           <Card.Content>
+            <Text style={styles.emptyScheduleText}>No sessions scheduled for this day</Text>
+          </Card.Content>
+        </Card>
+      ) : (
+        sortedDaySessions.map((session: any, idx) => {
+          const timeString = formatTime12h(session.startTime || session.time || '');
+          const [timeVal, timePeriod] = timeString.split(' ');
+          return (
+            <Card key={idx} style={styles.scheduleSessionCard}>
+              <Card.Content style={styles.scheduleSessionContent}>
+                <View style={styles.scheduleTimeCol}>
+                  <Text style={styles.scheduleTimeVal}>{timeVal}</Text>
+                  <Text style={styles.scheduleTimePeriod}>{timePeriod}</Text>
+                </View>
+                <View style={styles.scheduleSessionDivider} />
+                <View style={styles.scheduleDetailsCol}>
+                  <Text style={styles.scheduleSubject}>
+                    {session.subject || session.mainSubject || 'Session'} - {session.tuteeName}
+                  </Text>
+                  <Text style={styles.scheduleRoom}>
+                    {getRoomForSubject(session.subject || session.mainSubject)}
+                  </Text>
+                </View>
+              </Card.Content>
+            </Card>
+          );
+        })
+      )}
+
+      {/* Redesigned Attendance Section */}
+      <SectionHeader title="Attendance" onSeeAll={() => router.push('/(main)/attendance')} />
+      <Card style={styles.sectionCard}>
+        <Card.Content>
+          <View style={styles.attendanceSummaryRow}>
+            <Text style={styles.attendancePercentage}>{attendanceRate}%</Text>
+            <Text style={styles.attendanceMonthLabel}>
+              {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}
+            </Text>
+          </View>
+          <View style={styles.attendanceProgressBarTrack}>
+            <AnimatedBar
+              axis="horizontal"
+              width={`${attendanceRate}%`}
+              backgroundColor="#0d5c46"
+              style={styles.attendanceProgressBarFill}
+              delay={100}
+            />
+          </View>
+          <View style={styles.attendanceStatsRow}>
+            <Text style={[styles.attendanceStatText, { color: '#059669' }]}>
+              ✓ {totalPresent} present
+            </Text>
+            <Text style={[styles.attendanceStatText, { color: '#dc2626' }]}>
+              ✕ {absentCount} absent
+            </Text>
+          </View>
+        </Card.Content>
+      </Card>
+
+      {/* Redesigned Subject Scores Section with SVG rings */}
+      <SectionHeader title="Subject Scores" onSeeAll={() => router.push('/(main)/assessments')} />
+      <Card style={styles.sectionCard}>
+        <Card.Content style={{ paddingVertical: 4 }}>
+          {subjectTuteeKeys.length === 0 ? (
             <EmptyState
               icon="file-document-outline"
-              title="No Assessments"
-              message="No assessment records available yet."
+              title="No Scores"
+              message="No subject scores available yet."
             />
-          </Card.Content>
-        </Card>
-      ) : (
-        recentAssessments.map((a, idx) => {
-          const tutee = tutees.find((t) => t.id === a.tuteeId);
-          return (
-            <Animated.View key={a.id} entering={FadeInDown.delay(idx * 40).duration(200)}>
-              <Card style={styles.listCard}>
-                <Card.Content style={styles.listRow}>
-                  <MaterialCommunityIcons name="school-outline" size={20} color="#2563eb" />
-                  <View style={styles.listTextContainer}>
-                    <Text style={styles.listPrimary}>
-                      {a.subject || 'General'} - {tutee?.firstName || 'Child'}
-                    </Text>
-                    <Text style={styles.listSecondary}>
-                      {new Date(a.date).toLocaleDateString()} · Score: {a.score}%
-                    </Text>
-                  </View>
-                </Card.Content>
-              </Card>
-            </Animated.View>
-          );
-        })
-      )}
+          ) : (
+            subjectTuteeKeys.map((key) => {
+              const item = subjectTuteeAverages[key];
+              const avg = Math.round(item.sum / item.count);
+              const size = 48;
+              const strokeWidth = 3;
+              const radius = (size - strokeWidth) / 2;
+              const circumference = radius * 2 * Math.PI;
+              const strokeDashoffset = circumference - (avg / 100) * circumference;
 
-      <SectionHeader title="Weekly Schedule" onSeeAll={() => router.push('/(main)/schedule')} />
-      {sortedSchedule.length === 0 ? (
-        <Card style={styles.card}>
-          <Card.Content>
-            <EmptyState
-              icon="calendar-blank-outline"
-              title="No Schedule"
-              message="No tutoring sessions have been scheduled."
-            />
-          </Card.Content>
-        </Card>
-      ) : (
-        sortedSchedule.slice(0, 3).map((s, idx) => (
-          <Animated.View key={idx} entering={FadeInDown.delay(idx * 40).duration(200)}>
-            <Card style={styles.listCard}>
-              <Card.Content style={styles.listRow}>
-                <MaterialCommunityIcons name="calendar-clock-outline" size={20} color="#2563eb" />
-                <View style={styles.listTextContainer}>
-                  <Text style={styles.listPrimary}>
-                    {s.tuteeName} - {s.subject || 'Session'}
-                  </Text>
-                  <Text style={styles.listSecondary}>
-                    {s.day} · {formatTime12h(s.time)}
-                  </Text>
+              return (
+                <View style={styles.subjectScoreRow} key={key}>
+                  <View style={styles.svgContainer}>
+                    <Svg width={size} height={size}>
+                      <Circle
+                        cx={size / 2}
+                        cy={size / 2}
+                        r={radius}
+                        stroke="#f3f4f6"
+                        strokeWidth={strokeWidth}
+                        fill="transparent"
+                      />
+                      <Circle
+                        cx={size / 2}
+                        cy={size / 2}
+                        r={radius}
+                        stroke="#2563eb"
+                        strokeWidth={strokeWidth}
+                        fill="transparent"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={strokeDashoffset}
+                        strokeLinecap="round"
+                        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                      />
+                    </Svg>
+                    <View style={styles.gradeContainer}>
+                      <Text style={styles.gradeLetter}>{getGradeLetter(avg)}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.subjectTextCol}>
+                    <Text style={styles.subjectName}>{item.subject}</Text>
+                    <Text style={styles.subjectTutor}>{item.tuteeName} · {tutorName}</Text>
+                  </View>
+                  <View style={styles.scoreCol}>
+                    <Text style={styles.scoreVal}>{avg}%</Text>
+                  </View>
                 </View>
-              </Card.Content>
-            </Card>
-          </Animated.View>
-        ))
-      )}
+              );
+            })
+          )}
+        </Card.Content>
+      </Card>
 
-      <SectionHeader title="Attendance" onSeeAll={() => router.push('/(main)/attendance')} />
-      {!hasAttendance ? (
-        <Card style={styles.card}>
-          <Card.Content>
-            <EmptyState
-              icon="calendar-check-outline"
-              title="No Attendance"
-              message="No attendance records available yet."
-            />
-          </Card.Content>
-        </Card>
-      ) : (
-        tutees.slice(0, 3).map((tutee, idx) => {
-          const att = attendance[tutee.id] || { presentCount: 0, totalSessions: 0 };
-          const rate = att.totalSessions > 0 ? Math.round((att.presentCount / att.totalSessions) * 100) : 100;
-          return (
-            <Animated.View key={tutee.id} entering={FadeInDown.delay(idx * 40).duration(200)}>
-              <Card style={styles.listCard}>
-                <Card.Content style={styles.listRow}>
-                  <MaterialCommunityIcons name="calendar-check-outline" size={20} color="#2563eb" />
-                  <View style={styles.listTextContainer}>
-                    <Text style={styles.listPrimary}>{tutee.firstName} {tutee.surname}</Text>
-                    <Text style={styles.listSecondary}>{att.presentCount} of {att.totalSessions} sessions attended</Text>
-                  </View>
-                  <View style={[styles.dashAttBadge, { backgroundColor: rate >= 80 ? '#dbeafe' : rate >= 50 ? '#fef3c7' : '#fef2f2' }]}>
-                    <Text style={[styles.dashAttRate, { color: rate >= 80 ? '#2563eb' : rate >= 50 ? '#d97706' : '#dc2626' }]}>
-                      {rate}%
-                    </Text>
-                  </View>
-                </Card.Content>
-              </Card>
-            </Animated.View>
-          );
-        })
+      {/* Redesigned Announcement Banner Card */}
+      {latestAnnouncement && (
+        <TouchableOpacity
+          style={styles.announcementBannerCard}
+          onPress={() => router.navigate(`/(main)/announcements/${latestAnnouncement.id}`)}
+          activeOpacity={0.9}
+        >
+          <View style={styles.announcementBannerContent}>
+            <View style={styles.announcementBannerIconBg}>
+              <MaterialCommunityIcons name="bullhorn" size={20} color="#ffffff" />
+            </View>
+            <View style={styles.announcementBannerTextContainer}>
+              <Text style={styles.announcementBannerTitle}>{latestAnnouncement.title}</Text>
+              <Text style={styles.announcementBannerBody} numberOfLines={2}>
+                {latestAnnouncement.content}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
       )}
     </ScrollView>
   );
@@ -470,13 +578,28 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 110,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#eff6ff',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  headerGreeting: {
+    fontSize: 14,
+    color: '#4b5563',
+  },
+  headerName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1f2937',
   },
   headerTitle: {
     fontSize: 28,
@@ -485,196 +608,399 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     marginTop: 8,
   },
-  announcementCard: {
-    backgroundColor: '#fef3c7',
+  childBannerCard: {
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     marginBottom: 16,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
-  announcementHeader: {
+  childBannerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
   },
-  announcementTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#92400e',
-    marginLeft: 8,
+  childAvatarCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#dbeafe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  announcementSubject: {
+  childAvatarText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#78350f',
-    marginBottom: 4,
+    fontWeight: 'bold',
+    color: '#2563eb',
   },
-  announcementBody: {
-    fontSize: 14,
-    color: '#92400e',
-    lineHeight: 20,
+  childBannerInfo: {
+    flex: 1,
+  },
+  childBannerName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  childBannerGrade: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  enrolledBadge: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  enrolledBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#ffffff',
   },
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   kpiItem: {
     width: '48%',
     marginBottom: 12,
   },
+  kpiCardCustom: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+  },
+  kpiCardContentCustom: {
+    height: 115,
+    justifyContent: 'space-between',
+    padding: 12,
+  },
+  kpiDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  kpiValueCustom: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1f2937',
+  },
+  kpiTitleCustom: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginTop: 1,
+  },
+  kpiFooterCustom: {
+    fontSize: 9,
+    color: '#9ca3af',
+  },
+  tuitionBannerCard: {
+    backgroundColor: '#fee2e2',
+    borderRadius: 16,
+    marginBottom: 20,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+  },
+  tuitionBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  tuitionBannerLeft: {
+    flex: 1,
+  },
+  tuitionDueDate: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#b91c1c',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  tuitionAmount: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#991b1b',
+  },
+  tuitionLabel: {
+    fontSize: 12,
+    color: '#dc2626',
+    marginTop: 1,
+  },
+  payNowButton: {
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  payNowButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  scheduleHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  scheduleDateRange: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  daysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  dayTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    marginHorizontal: 3,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  dayTabActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  dayTabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4b5563',
+  },
+  dayTabTextActive: {
+    color: '#ffffff',
+  },
+  emptyScheduleCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    marginBottom: 16,
+    elevation: 1,
+    paddingVertical: 8,
+  },
+  emptyScheduleText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
+  scheduleSessionCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    marginBottom: 8,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+  },
+  scheduleSessionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  scheduleTimeCol: {
+    width: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scheduleTimeVal: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1f2937',
+  },
+  scheduleTimePeriod: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#9ca3af',
+    marginTop: 1,
+  },
+  scheduleSessionDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#e5e7eb',
+    marginHorizontal: 12,
+  },
+  scheduleDetailsCol: {
+    flex: 1,
+  },
+  scheduleSubject: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  scheduleRoom: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 1,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#2563eb',
-    marginTop: 16,
-    marginBottom: 12,
+    color: '#1f2937',
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 20,
     marginBottom: 12,
   },
   seeAllRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
   },
   seeAllText: {
     fontSize: 13,
     fontWeight: '700',
     color: '#2563eb',
   },
-  chartCard: {
+  sectionCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
-    marginBottom: 8,
-    elevation: 2,
-  },
-  vBarChart: {
-    paddingVertical: 8,
-  },
-  vBarChartArea: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-around',
-    height: 170,
-    paddingBottom: 4,
-  },
-  vBarGroup: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  vBarGroupBars: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 3,
-    height: 140,
-  },
-  vBar: {
-    width: 14,
-    borderRadius: 4,
-    minHeight: 0,
-  },
-  vBarLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#6b7280',
-    marginTop: 6,
-  },
-  vBarLegend: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-    marginTop: 12,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  legendText: {
-    fontSize: 11,
-    color: '#374151',
-  },
-  hBarChart: {
-    gap: 12,
-    paddingVertical: 4,
-  },
-  hBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  hBarLabel: {
-    width: 80,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-    textAlign: 'right',
-  },
-  hBarTrack: {
-    flex: 1,
-    height: 16,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  hBarFill: {
-    height: '100%',
-    borderRadius: 8,
-  },
-  hBarValue: {
-    width: 36,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'right',
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    marginBottom: 8,
-    elevation: 2,
-  },
-  listCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
     marginBottom: 8,
     elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
-  listRow: {
+  attendanceSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 10,
+  },
+  attendancePercentage: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#1f2937',
+  },
+  attendanceMonthLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  attendanceProgressBarTrack: {
+    height: 8,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  attendanceProgressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  attendanceStatsRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  attendanceStatText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  subjectScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  svgContainer: {
+    position: 'relative',
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gradeContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gradeLetter: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1f2937',
+  },
+  subjectTextCol: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  subjectName: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  subjectTutor: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 1,
+  },
+  scoreCol: {
+    alignItems: 'flex-end',
+  },
+  scoreVal: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1f2937',
+  },
+  announcementBannerCard: {
+    backgroundColor: '#1e3a8a',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 20,
+    marginBottom: 16,
+  },
+  announcementBannerContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  listTextContainer: {
-    marginLeft: 12,
+  announcementBannerIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  announcementBannerTextContainer: {
     flex: 1,
   },
-  listPrimary: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  listSecondary: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  dashAttBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  dashAttRate: {
+  announcementBannerTitle: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  announcementBannerBody: {
+    fontSize: 12,
+    color: '#bfdbfe',
+    lineHeight: 16,
   },
 });

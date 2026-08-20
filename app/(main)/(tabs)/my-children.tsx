@@ -173,7 +173,7 @@ export default function MyChildrenScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#eff6ff',
   },
   contentContainer: {
     padding: 16,
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#eff6ff',
   },
   loadingText: {
     fontSize: 14,

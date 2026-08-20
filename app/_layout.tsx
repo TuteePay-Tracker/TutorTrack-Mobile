@@ -25,6 +25,15 @@ const theme = {
     primaryContainer: '#dbeafe',
     secondary: '#059669',
     surface: '#ffffff',
+    surfaceVariant: '#ffffff',
+    elevation: {
+      level0: 'transparent',
+      level1: '#ffffff',
+      level2: '#ffffff',
+      level3: '#ffffff',
+      level4: '#ffffff',
+      level5: '#ffffff',
+    },
     background: '#f9fafb',
   },
 };

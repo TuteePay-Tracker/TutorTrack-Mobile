@@ -269,16 +269,16 @@ export default function AttendanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
+  container: { flex: 1, backgroundColor: '#eff6ff' },
   content: { padding: 16, paddingBottom: 110 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#eff6ff' },
   summaryCard: { marginBottom: 16, borderRadius: 16, elevation: 2, backgroundColor: '#2563eb' },
   summaryContent: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 16 },
   summaryItem: { alignItems: 'center', flex: 1 },
   summaryValue: { fontSize: 24, fontWeight: '800', color: '#ffffff' },
   summaryLabel: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.8)', marginTop: 4, textTransform: 'uppercase' },
   divider: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.3)' },
-  card: { marginBottom: 10, borderRadius: 14, elevation: 1 },
+  card: { marginBottom: 10, borderRadius: 14, elevation: 1, backgroundColor: '#ffffff' },
   cardRow: { flexDirection: 'row', alignItems: 'center' },
   cardLeft: { flex: 1 },
   childName: { fontSize: 15, fontWeight: '700', color: '#111827' },

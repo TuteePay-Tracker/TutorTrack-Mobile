@@ -23,8 +23,8 @@ export const AnnouncementCard = ({ announcement, onPress }: AnnouncementCardProp
     : new Date(announcement.createdAt).toLocaleDateString();
 
   return (
-    <ScaleOnPress onPress={onPress} disabled={!onPress} style={styles.card}>
-      <Card>
+    <ScaleOnPress onPress={onPress} disabled={!onPress} style={styles.cardWrapper}>
+      <Card style={styles.card}>
         <Card.Content>
         <View style={styles.header}>
           <View style={styles.titleRow}>
@@ -43,10 +43,13 @@ export const AnnouncementCard = ({ announcement, onPress }: AnnouncementCardProp
 };
 
 const styles = StyleSheet.create({
-  card: {
+  cardWrapper: {
     marginBottom: 12,
+  },
+  card: {
     borderRadius: 16,
     elevation: 1,
+    backgroundColor: '#ffffff',
   },
   header: {
     marginBottom: 8,

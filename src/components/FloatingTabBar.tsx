@@ -76,10 +76,23 @@ export function FloatingTabBar({ state, navigation }: FloatingTabBarProps) {
 
   const focusedRoute = state.routes[state.index];
   if (!focusedRoute) return null;
+
+  // Hide the tab bar if we are not on a recognised top-level tab.
   if (!tabs.some((t) => t.key === focusedRoute.name)) {
     return null;
   }
-  if (focusedRoute.state?.index > 0) {
+
+  // Hide when a nested stack screen is active.
+  // focusedRoute.state is populated for normal in-app pushes;
+  // when the screen was reached via a cold-start deep-link the state is
+  // undefined but the nested route name is non-null – check both.
+  const nestedIndex = focusedRoute.state?.index ?? 0;
+  const nestedRouteName = focusedRoute.state?.routes?.[nestedIndex]?.name ?? '';
+  const isShowingDetail =
+    nestedIndex > 0 ||
+    nestedRouteName === '[id]' ||
+    nestedRouteName.startsWith('[');
+  if (isShowingDetail) {
     return null;
   }
 
@@ -101,15 +114,14 @@ export function FloatingTabBar({ state, navigation }: FloatingTabBarProps) {
               focused={isFocused}
               showBadge={tab.key === 'chat' && hasUnreadChats}
               onPress={() => {
-                if (!isFocused) {
-                  const routeName = state.routes[tabIndex].name;
-                  if (routeName === 'chat') {
-                    navigation.navigate('chat', { screen: 'index' });
-                  } else if (routeName === 'announcements') {
-                    navigation.navigate('announcements', { screen: 'index' });
-                  } else {
-                    navigation.navigate(routeName);
-                  }
+                const routeName = state.routes[tabIndex].name;
+                if (routeName === 'chat') {
+                  // Always target the index so that re-tapping resets a stuck stack.
+                  navigation.navigate('chat', { screen: 'index' });
+                } else if (routeName === 'announcements') {
+                  navigation.navigate('announcements', { screen: 'index' });
+                } else if (!isFocused) {
+                  navigation.navigate(routeName);
                 }
               }}
             />

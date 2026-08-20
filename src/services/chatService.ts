@@ -15,6 +15,7 @@ import {
   limit,
   startAfter,
   DocumentSnapshot,
+  runTransaction,
 } from 'firebase/firestore';
 import { db, auth } from './firebaseConfig';
 import { notificationService } from './notificationService';
@@ -38,8 +39,7 @@ export const chatService = {
     const field = role === 'tutor' ? 'tutorId' : 'parentId';
     const q = query(
       chatsRef,
-      where(field, '==', userId),
-      orderBy('lastMessageTimestamp', 'desc')
+      where(field, '==', userId)
     );
 
     return onSnapshot(
@@ -49,6 +49,12 @@ export const chatService = {
           id: docSnap.id,
           ...docSnap.data(),
         })) as ChatThread[];
+
+        threads.sort((a, b) => {
+          const aT = a.lastMessageTimestamp?.toMillis?.() || 0;
+          const bT = b.lastMessageTimestamp?.toMillis?.() || 0;
+          return bT - aT;
+        });
 
         callback(threads);
       },
@@ -76,16 +82,17 @@ export const chatService = {
   ): () => void {
     const chatsRef = collection(db, 'chats');
     const field = role === 'tutor' ? 'tutorId' : 'parentId';
-    const unreadField = `unreadCount.${userId}`;
     const q = query(
       chatsRef,
-      where(field, '==', userId),
-      where(unreadField, '>', 0),
-      limit(1)
+      where(field, '==', userId)
     );
 
     return onSnapshot(q, (snapshot) => {
-      callback(!snapshot.empty);
+      const hasUnread = snapshot.docs.some((docSnap) => {
+        const data = docSnap.data();
+        return (data.unreadCount?.[userId] || 0) > 0;
+      });
+      callback(hasUnread);
     });
   },
 
@@ -129,7 +136,9 @@ export const chatService = {
     recipientId: string,
     replyTo?: { id: string; text: string; senderName: string }
   ): Promise<void> {
+    const threadRef = doc(db, 'chats', chatId);
     const messagesRef = collection(db, 'chats', chatId, 'messages');
+    const newMsgRef = doc(messagesRef);
 
     const messageData: any = {
       senderId,
@@ -145,17 +154,19 @@ export const chatService = {
       messageData.replyToSenderName = replyTo.senderName;
     }
 
-    await addDoc(messagesRef, messageData);
+    await runTransaction(db, async (transaction) => {
+      const threadDoc = await transaction.get(threadRef);
+      const currentUnread = threadDoc.data()?.unreadCount?.[recipientId] || 0;
 
-    const threadDoc = await getDoc(doc(db, 'chats', chatId));
-    const currentUnread = threadDoc.data()?.unreadCount?.[recipientId] || 0;
+      transaction.set(newMsgRef, messageData);
 
-    await updateDoc(doc(db, 'chats', chatId), {
-      lastMessageText: text,
-      lastMessageSenderId: senderId,
-      lastMessageTimestamp: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-      [`unreadCount.${recipientId}`]: currentUnread + 1,
+      transaction.update(threadRef, {
+        lastMessageText: text,
+        lastMessageSenderId: senderId,
+        lastMessageTimestamp: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        [`unreadCount.${recipientId}`]: currentUnread + 1,
+      });
     });
 
     notificationService

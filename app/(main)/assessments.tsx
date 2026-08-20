@@ -104,7 +104,7 @@ export default function AssessmentsScreen() {
         title: focusedTutee ? `${focusedTutee.firstName}'s Assessments` : '',
         headerTintColor: '#2563eb',
         headerShadowVisible: false,
-        headerStyle: { backgroundColor: '#f9fafb' },
+        headerStyle: { backgroundColor: '#eff6ff' },
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
             <MaterialCommunityIcons name="chevron-left" size={28} color="#2563eb" />
@@ -307,9 +307,9 @@ export default function AssessmentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
+  container: { flex: 1, backgroundColor: '#eff6ff' },
   content: { padding: 16, paddingBottom: 110 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#eff6ff' },
   filterSection: {
     marginBottom: 16,
     gap: 12,
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     overflow: 'hidden',
   },
-  card: { marginBottom: 10, borderRadius: 14, elevation: 1 },
+  card: { marginBottom: 10, borderRadius: 14, elevation: 1, backgroundColor: '#ffffff' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cardLeft: { flex: 1 },

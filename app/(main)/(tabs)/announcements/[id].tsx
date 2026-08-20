@@ -75,7 +75,7 @@ export default function AnnouncementDetailScreen() {
           title: '',
           headerTintColor: '#2563eb',
           headerShadowVisible: false,
-          headerStyle: { backgroundColor: '#ffffff' },
+          headerStyle: { backgroundColor: '#eff6ff' },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
               <MaterialCommunityIcons name="chevron-left" size={28} color="#2563eb" />
@@ -105,13 +105,13 @@ export default function AnnouncementDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#eff6ff',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#eff6ff',
   },
   notFoundText: {
     marginTop: 12,

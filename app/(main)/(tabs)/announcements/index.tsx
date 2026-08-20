@@ -118,13 +118,13 @@ export default function AnnouncementsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#eff6ff',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#eff6ff',
   },
   header: {
     flexDirection: 'row',
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#eff6ff',
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     gap: 4,
     marginTop: 8,
     paddingVertical: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#eff6ff',
     borderWidth: 1,
     borderColor: '#2563eb',
     borderRadius: 12,

@@ -334,7 +334,7 @@ export default function ChildDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#eff6ff',
   },
   content: {
     padding: 16,
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#eff6ff',
   },
   loadingText: {
     fontSize: 14,
@@ -355,6 +355,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 16,
     elevation: 1,
+    backgroundColor: '#ffffff',
   },
   profileContent: {
     flexDirection: 'row',
@@ -398,6 +399,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 16,
     elevation: 1,
+    backgroundColor: '#ffffff',
   },
   sectionHeader: {
     flexDirection: 'row',
