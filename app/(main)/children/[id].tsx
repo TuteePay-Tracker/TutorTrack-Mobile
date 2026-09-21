@@ -113,8 +113,17 @@ export default function ChildDetailsScreen() {
       ? Math.round((attendance.presentCount / attendance.totalSessions) * 100)
       : 100;
 
+  const deduplicatedTransactions = transactions.filter((t) => {
+    return !payments.some(
+      (p) =>
+        p.amount === t.totalAmount &&
+        p.paymentDate === t.paymentDate &&
+        p.paymentMethod === t.paymentMethod
+    );
+  });
+
   const mergedTxns: MergedTxn[] = [
-    ...transactions.map((t) => ({
+    ...deduplicatedTransactions.map((t) => ({
       id: t.id,
       amount: t.totalAmount,
       paymentMethod: t.paymentMethod,
@@ -233,7 +242,7 @@ export default function ChildDetailsScreen() {
                       </View>
                       <Text style={styles.transactionMethod}>{txn.paymentMethod}</Text>
                       {txn.notes && <Text style={styles.txnNotes}>{txn.notes}</Text>}
-                      {txn.proofUrl && (txn.status === 'pending' || txn.status === 'rejected') && (
+                      {txn.proofUrl && (
                         <TouchableOpacity onPress={() => setProofViewerUrl(txn.proofUrl!)} activeOpacity={0.7}>
                           <Image source={{ uri: txn.proofUrl }} style={styles.proofThumb} />
                         </TouchableOpacity>

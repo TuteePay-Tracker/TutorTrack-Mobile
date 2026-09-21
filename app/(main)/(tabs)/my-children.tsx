@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../../src/hooks/useAuth';
 import { useTutees } from '../../../src/hooks/useTutees';
 import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
-import { paymentService } from '../../../src/services/paymentService';
+import { paymentService, MonthlyRecord } from '../../../src/services/paymentService';
 import { assessmentService } from '../../../src/services/assessmentService';
 import { ChildCard } from '../../../src/components/ChildCard';
 import { EmptyState } from '../../../src/components/EmptyState';
@@ -40,11 +40,17 @@ export default function MyChildrenScreen() {
       // Use local refs so both callbacks can see each other's latest value
       let txnPaid = 0;
       let verifiedPaid = 0;
+      let monthlyRecs: MonthlyRecord[] = [];
 
       const updateMetrics = () => {
         const combined = txnPaid + verifiedPaid;
-        const totalDue = (tutee.totalSessions || 0) * (tutee.ratePerSession || 0);
-        const balance = Math.max(totalDue - combined, 0);
+        let balance = 0;
+        if (monthlyRecs.length > 0) {
+          balance = monthlyRecs.filter((r) => r.totalBalance > 0).reduce((s, r) => s + (r.totalBalance || 0), 0);
+        } else {
+          const totalDue = (tutee.totalSessions || 0) * (tutee.ratePerSession || 0);
+          balance = Math.max(totalDue - combined, 0);
+        }
         const paymentStatus = combined > 0 && balance === 0 ? 'Paid' : combined > 0 ? 'Partial' : 'Unpaid';
         setMetricsMap((prev) => ({
           ...prev,
@@ -68,6 +74,12 @@ export default function MyChildrenScreen() {
         updateMetrics();
       });
       cleanups.push(unsubVerified);
+
+      const unsubRecords = paymentService.subscribeRecordsByTutee(tutorId, tutee.id, (recs) => {
+        monthlyRecs = recs;
+        updateMetrics();
+      });
+      cleanups.push(unsubRecords);
 
       const unsubAtt = paymentService.subscribeAttendanceByTutee(tutorId, tutee.id, (att) => {
         const rate = att.totalSessions > 0 ? Math.round((att.presentCount / att.totalSessions) * 100) : 100;

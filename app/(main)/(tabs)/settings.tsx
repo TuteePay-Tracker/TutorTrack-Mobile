@@ -51,7 +51,7 @@ export default function SettingsScreen() {
                   {user?.name ?? 'No Name'}
                 </Text>
                 <Text variant="bodyMedium" style={styles.profileEmail}>
-                  {user?.email ?? 'No Email'}
+                  {user?.email?.replace('@tuteepay.local', '') ?? 'No Email'}
                 </Text>
               </View>
             </View>
@@ -67,7 +67,7 @@ export default function SettingsScreen() {
             />
             <TextInput
               label="Email"
-              value={user?.email ?? ''}
+              value={user?.email?.replace('@tuteepay.local', '') ?? ''}
               mode="outlined"
               disabled
               style={styles.input}

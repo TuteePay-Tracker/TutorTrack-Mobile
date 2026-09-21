@@ -6,8 +6,9 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useTabBarHeight } from '../../src/hooks/useTabBarHeight';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useTutees } from '../../src/hooks/useTutees';
-import { paymentService, PaymentTransaction } from '../../src/services/paymentService';
+import { paymentService, PaymentTransaction, MonthlyRecord } from '../../src/services/paymentService';
 import { Payment } from '../../src/types/payment';
+import { Tutee } from '../../src/types/tutee';
 import { formatCurrency } from '../../src/utils/formatCurrency';
 import { formatDate } from '../../src/utils/formatDate';
 import { EmptyState } from '../../src/components/EmptyState';
@@ -40,6 +41,7 @@ export default function PaymentsScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [recordsMap, setRecordsMap] = useState<Record<string, MonthlyRecord[]>>({});
   const [paidMap, setPaidMap] = useState<Record<string, number>>({});
   const [verifiedMap, setVerifiedMap] = useState<Record<string, number>>({});
   const [pendingMap, setPendingMap] = useState<Record<string, number>>({});
@@ -87,6 +89,11 @@ export default function PaymentsScreen() {
         setPendingMap((prev) => ({ ...prev, [tutee.id]: pending }));
       });
       cleanups.push(unsubPending);
+
+      const unsubRecords = paymentService.subscribeRecordsByTutee(tutorId, tutee.id, (recs) => {
+        setRecordsMap((prev) => ({ ...prev, [tutee.id]: recs }));
+      });
+      cleanups.push(unsubRecords);
     });
 
     const unsubPayments = paymentService.subscribeAllPayments(tutorId, scopeTutees.map((t) => t.id), (pays) => {
@@ -99,13 +106,23 @@ export default function PaymentsScreen() {
 
   const tuteeName = (t: any) => `${t.firstName} ${t.surname}`;
 
+  const getTuteeBalance = (tutee: Tutee) => {
+    const recs = recordsMap[tutee.id];
+    if (recs && recs.length > 0) {
+      return recs
+        .filter((r) => r.totalBalance > 0)
+        .reduce((sum, r) => sum + (r.totalBalance || 0), 0);
+    }
+    const paid = (paidMap[tutee.id] || 0) + (verifiedMap[tutee.id] || 0);
+    const due = (tutee.totalSessions || 0) * (tutee.ratePerSession || 0);
+    return Math.max(due - paid, 0);
+  };
+
   // Total Paid = tutor cash records (paymentTransactions) + verified parent proof payments (payments)
   const totalPaid = scopeTutees.reduce((s, tutee) =>
     s + (paidMap[tutee.id] || 0) + (verifiedMap[tutee.id] || 0), 0);
   const totalOutstanding = Math.round(scopeTutees.reduce((sum, tutee) => {
-    const paid = (paidMap[tutee.id] || 0) + (verifiedMap[tutee.id] || 0);
-    const due = (tutee.totalSessions || 0) * (tutee.ratePerSession || 0);
-    return sum + Math.max(due - paid, 0);
+    return sum + getTuteeBalance(tutee);
   }, 0));
 
   // Deduplicate transactions that are already recorded in the payments collection
@@ -146,8 +163,8 @@ export default function PaymentsScreen() {
 
   const perChild = focusTuteeId ? [] : scopeTutees.map((t) => {
     const paid = (paidMap[t.id] || 0) + (verifiedMap[t.id] || 0);
-    const due = (t.totalSessions || 0) * (t.ratePerSession || 0);
-    return { id: t.id, name: tuteeName(t), paid, balance: Math.max(due - paid, 0) };
+    const balance = getTuteeBalance(t);
+    return { id: t.id, name: tuteeName(t), paid, balance };
   });
 
   return (

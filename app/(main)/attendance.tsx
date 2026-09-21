@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { Text, Card, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,12 +10,12 @@ import { paymentService, AttendanceRecord } from '../../src/services/paymentServ
 import { EmptyState } from '../../src/components/EmptyState';
 
 const DAY_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  paid: { label: 'Present', color: '#059669', bg: '#f0fdf4' },
-  partial: { label: 'Absent', color: '#dc2626', bg: '#fef2f2' },
+  present: { label: 'Present', color: '#059669', bg: '#f0fdf4' },
+  absent: { label: 'Absent', color: '#dc2626', bg: '#fef2f2' },
   'no-class': { label: 'No Class', color: '#7c3aed', bg: '#f5f3ff' },
 };
 
-const defaultDayConfig = { label: 'Not Marked', color: '#6b7280', bg: '#f3f4f6' };
+const defaultDayConfig = { label: 'Unmarked', color: '#6b7280', bg: '#f3f4f6' };
 
 const formatDayLabel = (dateString: string): string => {
   const date = new Date(dateString + 'T00:00:00');
@@ -33,45 +33,92 @@ export default function AttendanceScreen() {
   const { tutees, isLoading } = useTutees();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const tabBarHeight = useTabBarHeight();
-  const [attendanceMap, setAttendanceMap] = useState<Record<string, { presentCount: number; totalSessions: number }>>({});
-  const [recordsMap, setRecordsMap] = useState<Record<string, AttendanceRecord[]>>({});
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [selectedMonths, setSelectedMonths] = useState<Record<string, string>>({});
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const focusTuteeId = from?.startsWith('children/') ? from.split('/')[1] : undefined;
   const scopeTutees = focusTuteeId ? tutees.filter((t) => t.id === focusTuteeId) : tutees;
   const focusedTutee = focusTuteeId ? tutees.find((t) => t.id === focusTuteeId) : null;
+  const scopeTuteeIds = scopeTutees.map((t) => t.id).sort().join(',');
 
   useEffect(() => {
     if (!user?.createdByTutorId || scopeTutees.length === 0) {
+      setRecords([]);
       setLoading(false);
       return;
     }
     const tutorId = user.createdByTutorId;
+    setLoading(true);
+    setError(null);
 
-    const cleanups: (() => void)[] = [];
-    scopeTutees.forEach((tutee) => {
-      const unsub = paymentService.subscribeAttendanceByTutee(tutorId, tutee.id, (att) => {
-        setAttendanceMap((prev) => ({ ...prev, [tutee.id]: att }));
+    const unsub = paymentService.subscribeRecordsForTutees(
+      tutorId,
+      scopeTutees.map((t) => t.id),
+      (recs) => {
+        setRecords(recs);
         setLoading(false);
-      });
-      cleanups.push(unsub);
+      },
+      () => {
+        setError('Could not load attendance. Please try again.');
+        setLoading(false);
+      }
+    );
 
-      const unsubRecords = paymentService.subscribeAttendanceRecords(tutorId, tutee.id, (records) => {
-        setRecordsMap((prev) => ({ ...prev, [tutee.id]: records }));
-        setLoading(false);
-      });
-      cleanups.push(unsubRecords);
+    return () => unsub();
+  }, [user?.createdByTutorId, scopeTuteeIds, reloadKey]);
+
+  const attendanceMap = useMemo(() => {
+    const map: Record<string, { presentCount: number; totalSessions: number }> = {};
+    scopeTutees.forEach((t) => {
+      map[t.id] = { presentCount: 0, totalSessions: 0 };
     });
+    records.forEach((r) => {
+      const tuteeId = r.tuteeId;
+      if (!tuteeId || !map[tuteeId]) return;
+      (r.dayPayments || []).forEach((dp) => {
+        if (dp.resolvedStatus === 'present') map[tuteeId].presentCount++;
+        if (dp.resolvedStatus !== 'no-class') map[tuteeId].totalSessions++;
+      });
+    });
+    return map;
+  }, [records, scopeTutees]);
 
-    return () => cleanups.forEach((u) => u());
-  }, [user?.createdByTutorId, focusTuteeId, tutees]);
+  const recordsMap = useMemo(() => {
+    const map: Record<string, AttendanceRecord[]> = {};
+    scopeTutees.forEach((t) => {
+      map[t.id] = [];
+    });
+    records.forEach((r) => {
+      const tuteeId = r.tuteeId;
+      if (tuteeId && map[tuteeId]) map[tuteeId].push(r);
+    });
+    return map;
+  }, [records, scopeTutees]);
 
   if (isLoading || loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.loadingContainer}>
+        <MaterialCommunityIcons name="cloud-alert-outline" size={40} color="#dc2626" />
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => setReloadKey((k) => k + 1)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -82,7 +129,7 @@ export default function AttendanceScreen() {
     totalAttended += att.presentCount;
     totalSessions += att.totalSessions;
   });
-  const overallRate = totalSessions > 0 ? Math.round((totalAttended / totalSessions) * 100) : 100;
+  const overallRate = totalSessions > 0 ? Math.round((totalAttended / totalSessions) * 100) : 0;
 
   return (
     <>
@@ -127,7 +174,7 @@ export default function AttendanceScreen() {
         ) : (
           scopeTutees.map((tutee) => {
             const att = attendanceMap[tutee.id] || { presentCount: 0, totalSessions: 0 };
-            const rate = att.totalSessions > 0 ? Math.round((att.presentCount / att.totalSessions) * 100) : 100;
+            const rate = att.totalSessions > 0 ? Math.round((att.presentCount / att.totalSessions) * 100) : 0;
             const records = recordsMap[tutee.id] || [];
 
             return (
@@ -174,18 +221,18 @@ export default function AttendanceScreen() {
                                   <View style={styles.countChipRow}>
                                     <View style={[styles.countChip, { backgroundColor: '#f0fdf4' }]}>
                                       <Text style={[styles.countChipText, { color: '#059669' }]}>
-                                        {record.dayPayments.filter((d) => d.status === 'paid').length} Present
+                                        {record.dayPayments.filter((d) => d.resolvedStatus === 'present').length} Present
                                       </Text>
                                     </View>
                                     <View style={[styles.countChip, { backgroundColor: '#fef2f2' }]}>
                                       <Text style={[styles.countChipText, { color: '#dc2626' }]}>
-                                        {record.dayPayments.filter((d) => d.status === 'partial').length} Absent
+                                        {record.dayPayments.filter((d) => d.resolvedStatus === 'absent').length} Absent
                                       </Text>
                                     </View>
-                                    {record.dayPayments.some((d) => d.status === 'no-class') && (
+                                    {record.dayPayments.some((d) => d.resolvedStatus === 'no-class') && (
                                       <View style={[styles.countChip, { backgroundColor: '#f5f3ff' }]}>
                                         <Text style={[styles.countChipText, { color: '#7c3aed' }]}>
-                                          {record.dayPayments.filter((d) => d.status === 'no-class').length} No Class
+                                          {record.dayPayments.filter((d) => d.resolvedStatus === 'no-class').length} No Class
                                         </Text>
                                       </View>
                                     )}
@@ -193,7 +240,7 @@ export default function AttendanceScreen() {
                                 </View>
                                 <View style={styles.dayGrid}>
                                   {record.dayPayments.map((day) => {
-                                    const config = DAY_STATUS_CONFIG[day.status] || defaultDayConfig;
+                                    const config = DAY_STATUS_CONFIG[day.resolvedStatus] || defaultDayConfig;
                                     return (
                                       <View key={day.date} style={[styles.dayChip, { backgroundColor: config.bg }]}>
                                         <Text style={[styles.dayChipDate, { color: config.color }]}>{formatDayLabel(day.date)}</Text>
@@ -272,6 +319,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#eff6ff' },
   content: { padding: 16, paddingBottom: 110 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#eff6ff' },
+  errorText: { fontSize: 14, fontWeight: '600', color: '#dc2626', textAlign: 'center', marginTop: 12, paddingHorizontal: 32 },
+  retryButton: { marginTop: 16, backgroundColor: '#2563eb', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10 },
+  retryText: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
   summaryCard: { marginBottom: 16, borderRadius: 16, elevation: 2, backgroundColor: '#2563eb' },
   summaryContent: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 16 },
   summaryItem: { alignItems: 'center', flex: 1 },

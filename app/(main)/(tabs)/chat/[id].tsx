@@ -453,13 +453,6 @@ export default function ChatScreen() {
         </View>
       );
     }
-    if (!hasMore && reversedMessages.length > 0) {
-      return (
-        <View style={styles.endOfMessages}>
-          <Text style={styles.endOfMessagesText}>Beginning of conversation</Text>
-        </View>
-      );
-    }
     return null;
   }, [loadingOlder, hasMore, reversedMessages.length]);
 
@@ -709,15 +702,6 @@ const styles = StyleSheet.create({
   olderLoader: {
     paddingVertical: verticalScale(16),
     alignItems: 'center',
-  },
-  endOfMessages: {
-    paddingVertical: verticalScale(16),
-    alignItems: 'center',
-  },
-  endOfMessagesText: {
-    fontSize: moderateScale(12),
-    color: '#9ca3af',
-    fontWeight: '500',
   },
   inputBar: {
     flexDirection: 'row',

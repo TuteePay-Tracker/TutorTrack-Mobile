@@ -30,13 +30,32 @@ export interface MonthlyRecord {
   createdAt: string;
 }
 
+export type AttendanceStatus = 'present' | 'absent' | 'no-class' | 'none';
+
 export interface AttendanceDay {
   date: string;
   status: string;
+  attendance?: AttendanceStatus;
+  amountDue?: number;
+  amountPaid?: number;
+  resolvedStatus: AttendanceStatus;
 }
+
+export const getDayAttendance = (dp: {
+  status?: string;
+  attendance?: string;
+  amountPaid?: number;
+}): AttendanceStatus => {
+  if (dp.attendance) return dp.attendance as AttendanceStatus;
+  if (dp.status === 'paid') return 'present';
+  if (dp.status === 'no-class') return 'no-class';
+  if (dp.status === 'partial' && (dp.amountPaid || 0) <= 0) return 'absent';
+  return 'none';
+};
 
 export interface AttendanceRecord {
   id: string;
+  tuteeId?: string;
   month: string;
   dayPayments: AttendanceDay[];
 }
@@ -80,24 +99,32 @@ export const paymentService = {
   subscribeAttendanceByTutee(
     tutorId: string,
     tuteeId: string,
-    callback: (attendance: { presentCount: number; totalSessions: number }) => void
+    callback: (attendance: { presentCount: number; totalSessions: number }) => void,
+    onError?: (error: Error) => void
   ): () => void {
     const recordsRef = collection(db, 'users', tutorId, 'paymentRecords');
     const q = query(recordsRef, where('tuteeId', '==', tuteeId));
 
-    return onSnapshot(q, (snapshot) => {
-      let present = 0;
-      let total = 0;
-      snapshot.docs.forEach((docSnap) => {
-        const recData = docSnap.data();
-        const dayPayments = (recData.dayPayments || []) as any[];
-        dayPayments.forEach((dp: any) => {
-          if (dp.status === 'paid') present++;
-          if (dp.status !== 'no-class') total++;
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        let present = 0;
+        let total = 0;
+        snapshot.docs.forEach((docSnap) => {
+          const recData = docSnap.data();
+          const dayPayments = (recData.dayPayments || []) as any[];
+          dayPayments.forEach((dp: any) => {
+            if (getDayAttendance(dp) === 'present') present++;
+            if (getDayAttendance(dp) !== 'no-class') total++;
+          });
         });
-      });
-      callback({ presentCount: present, totalSessions: total });
-    });
+        callback({ presentCount: present, totalSessions: total });
+      },
+      (error) => {
+        console.error('Error in attendance subscription:', error);
+        if (onError) onError(error);
+      }
+    );
   },
 
   async getRecordsByTutee(tutorId: string, tuteeId: string): Promise<MonthlyRecord[]> {
@@ -154,26 +181,82 @@ export const paymentService = {
   subscribeAttendanceRecords(
     tutorId: string,
     tuteeId: string,
-    callback: (records: AttendanceRecord[]) => void
+    callback: (records: AttendanceRecord[]) => void,
+    onError?: (error: Error) => void
   ): () => void {
     const recordsRef = collection(db, 'users', tutorId, 'paymentRecords');
     const q = query(recordsRef, where('tuteeId', '==', tuteeId));
 
-    return onSnapshot(q, (snapshot) => {
-      const records = snapshot.docs.map((docSnap) => {
-        const data = docSnap.data();
-        return {
-          id: docSnap.id,
-          month: data.month as string,
-          dayPayments: ((data.dayPayments || []) as any[]).map((dp: any) => ({
-            date: dp.date as string,
-            status: dp.status as string,
-          })),
-        };
-      });
-      records.sort((a, b) => b.month.localeCompare(a.month));
-      callback(records);
-    });
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const records = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            tuteeId: data.tuteeId as string,
+            month: data.month as string,
+            dayPayments: ((data.dayPayments || []) as any[]).map((dp: any) => ({
+              date: dp.date as string,
+              status: dp.status as string,
+              attendance: dp.attendance as AttendanceStatus | undefined,
+              amountDue: dp.amountDue as number | undefined,
+              amountPaid: dp.amountPaid as number | undefined,
+              resolvedStatus: getDayAttendance(dp),
+            })),
+          };
+        });
+        records.sort((a, b) => b.month.localeCompare(a.month));
+        callback(records);
+      },
+      (error) => {
+        console.error('Error in attendance subscription:', error);
+        if (onError) onError(error);
+      }
+    );
+  },
+
+  subscribeRecordsForTutees(
+    tutorId: string,
+    tuteeIds: string[],
+    callback: (records: AttendanceRecord[]) => void,
+    onError?: (error: Error) => void
+  ): () => void {
+    if (tuteeIds.length === 0) {
+      callback([]);
+      return () => {};
+    }
+
+    const recordsRef = collection(db, 'users', tutorId, 'paymentRecords');
+    const q = query(recordsRef, where('tuteeId', 'in', tuteeIds));
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const records = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            tuteeId: data.tuteeId as string,
+            month: data.month as string,
+            dayPayments: ((data.dayPayments || []) as any[]).map((dp: any) => ({
+              date: dp.date as string,
+              status: dp.status as string,
+              attendance: dp.attendance as AttendanceStatus | undefined,
+              amountDue: dp.amountDue as number | undefined,
+              amountPaid: dp.amountPaid as number | undefined,
+              resolvedStatus: getDayAttendance(dp),
+            })),
+          };
+        });
+        records.sort((a, b) => b.month.localeCompare(a.month));
+        callback(records);
+      },
+      (error) => {
+        console.error('Error in attendance subscription:', error);
+        if (onError) onError(error);
+      }
+    );
   },
 
   async createPaymentProof(

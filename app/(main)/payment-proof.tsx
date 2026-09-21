@@ -175,21 +175,23 @@ export default function PaymentProofScreen() {
   }, [selectedTuteeId, user?.createdByTutorId]);
 
   const unpaidRecords = monthRecords.filter((r) => r.totalBalance > 0);
+  const unpaidBalance = unpaidRecords.reduce((sum, r) => sum + (r.totalBalance || 0), 0);
+  const oldestUnpaid = [...unpaidRecords].sort((a, b) => a.month.localeCompare(b.month))[0];
 
   useEffect(() => {
     if (unpaidRecords.length === 0) {
       setSelectedMonth('');
+      setPayAmount('');
       return;
     }
-    const stillUnpaid = unpaidRecords.find((r) => r.month === selectedMonth);
-    if (!stillUnpaid) {
-      const first = unpaidRecords[0];
-      setSelectedMonth(first.month);
-      setPayAmount(first.totalBalance.toString());
+    if (oldestUnpaid && selectedMonth !== oldestUnpaid.month) {
+      setSelectedMonth(oldestUnpaid.month);
+      setPayAmount(oldestUnpaid.totalBalance.toString());
     }
   }, [monthRecords]);
 
   const handleSelectMonth = (record: MonthlyRecord) => {
+    if (oldestUnpaid && record.month !== oldestUnpaid.month) return;
     setSelectedMonth(record.month);
     setPayAmount(record.totalBalance.toString());
   };
@@ -287,6 +289,11 @@ export default function PaymentProofScreen() {
 
     if (unpaidRecords.length > 0 && !selectedMonth) {
       Alert.alert('Error', 'Please select a billing month.');
+      return;
+    }
+
+    if (unpaidRecords.length > 0 && (!oldestUnpaid || selectedMonth !== oldestUnpaid.month)) {
+      Alert.alert('Cannot Pay This Month', 'Please settle the remaining balance from the previous month first.');
       return;
     }
 
@@ -412,8 +419,8 @@ export default function PaymentProofScreen() {
               <Card.Content style={styles.balanceContent}>
                 <MaterialCommunityIcons name="cash-remove" size={22} color="#ffffff" />
                 <View style={styles.balanceInfo}>
-                  <Text style={styles.balanceLabel}>Remaining Balance</Text>
-                  <Text style={styles.balanceValue}>{formatCurrency(balance)}</Text>
+                  <Text style={styles.balanceLabel}>Unpaid Balance</Text>
+                  <Text style={styles.balanceValue}>{formatCurrency(unpaidBalance)}</Text>
                 </View>
               </Card.Content>
             </Card>
@@ -444,18 +451,32 @@ export default function PaymentProofScreen() {
                     const pendingPayment = payments.find((p) => p.month === record.month && p.status === 'pending');
                     const rejectedPayment = payments.find((p) => p.month === record.month && p.status === 'rejected');
                     const isSelected = record.month === selectedMonth;
+                    const isBlocked = !!oldestUnpaid && record.month !== oldestUnpaid.month;
+                    const blockedByLabel = isBlocked && oldestUnpaid ? formatMonthLabel(oldestUnpaid.month) : null;
                     return (
                       <TouchableOpacity
                         key={record.id}
                         onPress={() => handleSelectMonth(record)}
-                        style={[styles.monthCard, isSelected && styles.monthCardSelected]}
+                        disabled={isBlocked}
+                        style={[styles.monthCard, isSelected && styles.monthCardSelected, isBlocked && styles.monthCardBlocked]}
                         activeOpacity={0.7}
                       >
                         <View style={styles.monthCardLeft}>
-                          <Text style={[styles.monthCardName, isSelected && styles.monthCardNameSelected]}>
-                            {formatMonthLabel(record.month)}
-                          </Text>
-                          {pendingPayment ? (
+                          <View style={styles.monthCardNameRow}>
+                            <MaterialCommunityIcons
+                              name={isBlocked ? 'lock-outline' : 'calendar-month'}
+                              size={14}
+                              color={isBlocked ? '#9ca3af' : '#374151'}
+                            />
+                            <Text style={[styles.monthCardName, isSelected && styles.monthCardNameSelected, isBlocked && styles.monthCardNameBlocked]}>
+                              {formatMonthLabel(record.month)}
+                            </Text>
+                          </View>
+                          {isBlocked ? (
+                            <Text style={styles.monthBlockedNote}>
+                              Pay {blockedByLabel} balance first
+                            </Text>
+                          ) : pendingPayment ? (
                             <View style={[styles.monthBadge, { backgroundColor: '#fffbeb' }]}>
                               <Text style={[styles.monthBadgeText, { color: '#b45309' }]}>Verification Pending</Text>
                             </View>
@@ -478,7 +499,7 @@ export default function PaymentProofScreen() {
                         </View>
                         <View style={styles.monthCardRight}>
                           <Text style={styles.monthCardBalanceLabel}>Balance Due</Text>
-                          <Text style={[styles.monthCardBalance, isSelected && styles.monthCardBalanceSelected]}>
+                          <Text style={[styles.monthCardBalance, isSelected && styles.monthCardBalanceSelected, isBlocked && styles.monthCardBalanceBlocked]}>
                             {formatCurrency(record.totalBalance)}
                           </Text>
                         </View>
@@ -947,9 +968,19 @@ const styles = StyleSheet.create({
     borderColor: '#15803d',
     backgroundColor: '#f0fdf4',
   },
+  monthCardBlocked: {
+    opacity: 0.55,
+  },
   monthCardLeft: { flex: 1, gap: 6 },
+  monthCardNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   monthCardName: { fontSize: 14, fontWeight: '700', color: '#111827' },
   monthCardNameSelected: { color: '#15803d' },
+  monthCardNameBlocked: { color: '#9ca3af' },
+  monthBlockedNote: { fontSize: 11, color: '#b45309', fontStyle: 'italic' },
   monthBadge: {
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
@@ -962,6 +993,7 @@ const styles = StyleSheet.create({
   monthCardBalanceLabel: { fontSize: 10, fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase' },
   monthCardBalance: { fontSize: 15, fontWeight: '800', color: '#111827', marginTop: 2 },
   monthCardBalanceSelected: { color: '#15803d' },
+  monthCardBalanceBlocked: { color: '#9ca3af' },
   monthCheck: { position: 'absolute', right: 12, top: 12 },
 
   input: {

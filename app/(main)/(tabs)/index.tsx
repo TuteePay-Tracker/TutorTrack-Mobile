@@ -18,7 +18,7 @@ import { useTutees } from '../../../src/hooks/useTutees';
 import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
 import { formatCurrency } from '../../../src/utils/formatCurrency';
 import { formatTime12h } from '../../../src/utils/formatTime';
-import { paymentService } from '../../../src/services/paymentService';
+import { paymentService, MonthlyRecord } from '../../../src/services/paymentService';
 import { assessmentService } from '../../../src/services/assessmentService';
 import { announcementService } from '../../../src/services/announcementService';
 import { Announcement } from '../../../src/types/announcement';
@@ -31,6 +31,14 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../src/services/firebaseConfig';
 
 const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/** Returns a time-based greeting based on the current local hour. */
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return 'Good Morning,';
+  if (hour >= 12 && hour < 18) return 'Good Afternoon,';
+  return 'Good Evening,';
+}
 
 /** Returns the current school year label (Philippine: June–May convention). */
 function getCurrentSchoolYearLabel(): string {
@@ -86,6 +94,7 @@ export default function ParentDashboard() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [payments, setPayments] = useState<Record<string, number>>({});
   const [verifiedPayments, setVerifiedPayments] = useState<Record<string, number>>({});
+  const [monthlyRecords, setMonthlyRecords] = useState<Record<string, MonthlyRecord[]>>({});
   const [attendance, setAttendance] = useState<Record<string, { presentCount: number; totalSessions: number }>>({});
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [tutorName, setTutorName] = useState<string>('Tutor');
@@ -137,6 +146,11 @@ export default function ParentDashboard() {
       unsubPayments.push(
         paymentService.subscribeVerifiedAmountByTutee(tutorId, tutee.id, (verified: number) => {
           setVerifiedPayments((prev) => ({ ...prev, [tutee.id]: verified }));
+        })
+      );
+      unsubPayments.push(
+        paymentService.subscribeRecordsByTutee(tutorId, tutee.id, (recs) => {
+          setMonthlyRecords((prev) => ({ ...prev, [tutee.id]: recs }));
         })
       );
       unsubAttendance.push(
@@ -251,6 +265,10 @@ export default function ParentDashboard() {
 
   const totalPaid = Math.round(tutees.reduce((sum, t) => sum + (payments[t.id] || 0) + (verifiedPayments[t.id] || 0), 0));
   const totalOutstanding = Math.max(Math.round(tutees.reduce((sum, t) => {
+    const recs = monthlyRecords[t.id];
+    if (recs && recs.length > 0) {
+      return sum + recs.filter((r) => r.totalBalance > 0).reduce((s, r) => s + (r.totalBalance || 0), 0);
+    }
     const paid = (payments[t.id] || 0) + (verifiedPayments[t.id] || 0);
     const due = (t.totalSessions || 0) * (t.ratePerSession || 0);
     return sum + Math.max(due - paid, 0);
@@ -295,7 +313,7 @@ export default function ParentDashboard() {
       {/* Redesigned Header Layout */}
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.headerGreeting}>Good morning,</Text>
+          <Text style={styles.headerGreeting}>{getGreeting()}</Text>
           <Text style={styles.headerName}>{user.name || 'Parent'}</Text>
         </View>
       </View>
