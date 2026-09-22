@@ -6,12 +6,14 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useTabBarHeight } from '../../src/hooks/useTabBarHeight';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useTutees } from '../../src/hooks/useTutees';
+import { useSchoolYear } from '../../src/contexts/SchoolYearContext';
 import { paymentService, PaymentTransaction, MonthlyRecord } from '../../src/services/paymentService';
 import { Payment } from '../../src/types/payment';
 import { Tutee } from '../../src/types/tutee';
 import { formatCurrency } from '../../src/utils/formatCurrency';
 import { formatDate } from '../../src/utils/formatDate';
 import { EmptyState } from '../../src/components/EmptyState';
+import { getTuteeYearTotals, belongsToSchoolYear, isMonthInSchoolYear } from '../../src/utils/schoolYear';
 
 type MergedTransaction = {
   id: string;
@@ -36,15 +38,13 @@ const STATUS_CONFIG = {
 export default function PaymentsScreen() {
   const { user } = useAuth();
   const { tutees } = useTutees();
+  const { selectedYear } = useSchoolYear();
   const tabBarHeight = useTabBarHeight();
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [recordsMap, setRecordsMap] = useState<Record<string, MonthlyRecord[]>>({});
-  const [paidMap, setPaidMap] = useState<Record<string, number>>({});
-  const [verifiedMap, setVerifiedMap] = useState<Record<string, number>>({});
-  const [pendingMap, setPendingMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [proofViewerUrl, setProofViewerUrl] = useState<string | null>(null);
 
@@ -63,64 +63,46 @@ export default function PaymentsScreen() {
 
     scopeTutees.forEach((tutee) => {
       const unsub = paymentService.subscribeTransactionsByTuteeList(tutorId, tutee.id, (txns) => {
-        const named = txns.map((t) => ({
-          ...t,
-          tuteeName: tuteeName(tutee),
-        }));
+        const filtered = txns
+          .filter((t) => belongsToSchoolYear(selectedYear, t))
+          .map((t) => ({
+            ...t,
+            tuteeName: tuteeName(tutee),
+          }));
         setTransactions((prev) => {
           const others = prev.filter((t) => t.tuteeId !== tutee.id);
-          return [...others, ...named];
+          return [...others, ...filtered];
         });
         setLoading(false);
       });
       cleanups.push(unsub);
 
-      const unsubPaid = paymentService.subscribeTransactionsByTutee(tutorId, tutee.id, (total) => {
-        setPaidMap((prev) => ({ ...prev, [tutee.id]: total }));
-      });
-      cleanups.push(unsubPaid);
-
-      const unsubVerified = paymentService.subscribeVerifiedAmountByTutee(tutorId, tutee.id, (verified) => {
-        setVerifiedMap((prev) => ({ ...prev, [tutee.id]: verified }));
-      });
-      cleanups.push(unsubVerified);
-
-      const unsubPending = paymentService.subscribePendingAmountByTutee(tutorId, tutee.id, (pending) => {
-        setPendingMap((prev) => ({ ...prev, [tutee.id]: pending }));
-      });
-      cleanups.push(unsubPending);
-
       const unsubRecords = paymentService.subscribeRecordsByTutee(tutorId, tutee.id, (recs) => {
-        setRecordsMap((prev) => ({ ...prev, [tutee.id]: recs }));
+        setRecordsMap((prev) => ({
+          ...prev,
+          [tutee.id]: recs.filter((r) => isMonthInSchoolYear(r.month, selectedYear)),
+        }));
       });
       cleanups.push(unsubRecords);
     });
 
     const unsubPayments = paymentService.subscribeAllPayments(tutorId, scopeTutees.map((t) => t.id), (pays) => {
-      setPayments(pays);
+      setPayments(pays.filter((p) => belongsToSchoolYear(selectedYear, p)));
     });
     cleanups.push(unsubPayments);
 
     return () => cleanups.forEach((u) => u());
-  }, [user?.createdByTutorId, scopeTutees]);
+  }, [user?.createdByTutorId, scopeTutees, selectedYear]);
 
   const tuteeName = (t: any) => `${t.firstName} ${t.surname}`;
 
   const getTuteeBalance = (tutee: Tutee) => {
-    const recs = recordsMap[tutee.id];
-    if (recs && recs.length > 0) {
-      return recs
-        .filter((r) => r.totalBalance > 0)
-        .reduce((sum, r) => sum + (r.totalBalance || 0), 0);
-    }
-    const paid = (paidMap[tutee.id] || 0) + (verifiedMap[tutee.id] || 0);
-    const due = (tutee.totalSessions || 0) * (tutee.ratePerSession || 0);
-    return Math.max(due - paid, 0);
+    return Math.max(Math.round(getTuteeYearTotals(tutee, selectedYear).balance || 0), 0);
   };
 
-  // Total Paid = tutor cash records (paymentTransactions) + verified parent proof payments (payments)
+  // Total Paid = canonical per-year totals (tutor cash records + verified parent proof payments)
   const totalPaid = scopeTutees.reduce((s, tutee) =>
-    s + (paidMap[tutee.id] || 0) + (verifiedMap[tutee.id] || 0), 0);
+    s + Math.round(getTuteeYearTotals(tutee, selectedYear).totalPaid || 0), 0);
   const totalOutstanding = Math.round(scopeTutees.reduce((sum, tutee) => {
     return sum + getTuteeBalance(tutee);
   }, 0));
@@ -162,7 +144,7 @@ export default function PaymentsScreen() {
   ].sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
 
   const perChild = focusTuteeId ? [] : scopeTutees.map((t) => {
-    const paid = (paidMap[t.id] || 0) + (verifiedMap[t.id] || 0);
+    const paid = Math.round(getTuteeYearTotals(t, selectedYear).totalPaid || 0);
     const balance = getTuteeBalance(t);
     return { id: t.id, name: tuteeName(t), paid, balance };
   });

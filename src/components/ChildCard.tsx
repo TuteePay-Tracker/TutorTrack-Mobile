@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tutee } from '../types/tutee';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatTime12h } from '../utils/formatTime';
+import { compareScheduleSlots } from '../utils/scheduleSort';
 import { ScaleOnPress } from './ScaleOnPress';
 
 interface ChildCardProps {
@@ -24,7 +25,7 @@ export const ChildCard = ({ tutee, metrics, onPress }: ChildCardProps) => {
 
   const renderSchedule = () => {
     if (Array.isArray(tutee.schedule)) {
-      return tutee.schedule.map((slot, index) => {
+      return [...tutee.schedule].sort(compareScheduleSlots).map((slot, index) => {
         if (typeof slot === 'object' && slot !== null && 'startTime' in slot && 'endTime' in slot) {
           return (
             <Text key={index} style={styles.scheduleText}>
@@ -69,7 +70,9 @@ export const ChildCard = ({ tutee, metrics, onPress }: ChildCardProps) => {
         <View style={styles.metricsGrid}>
           <View style={[styles.metricBox, { backgroundColor: '#ecfdf5' }]}>
             <MaterialCommunityIcons name="check-circle-outline" size={16} color="#059669" />
-            <Text style={[styles.metricValue, { color: '#059669' }]}>{metrics.attendanceRate}%</Text>
+            <Text style={[styles.metricValue, { color: '#059669' }]}>
+              {metrics.attendanceRate >= 0 ? `${metrics.attendanceRate}%` : '--'}
+            </Text>
             <Text style={styles.metricLabel}>Attendance</Text>
           </View>
           <View style={[styles.metricBox, { backgroundColor: '#eef2ff' }]}>

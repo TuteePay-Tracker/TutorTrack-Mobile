@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuthContext } from '../src/contexts/AuthContext';
 import { NotificationProvider } from '../src/contexts/NotificationContext';
+import { SchoolYearProvider } from '../src/contexts/SchoolYearContext';
 import { ActivityIndicator, View, StyleSheet, Text, TextInput } from 'react-native';
 import { PaperProvider, DefaultTheme } from 'react-native-paper';
 
@@ -93,10 +94,12 @@ export default function RootLayout() {
       <PaperProvider theme={stripLetterSpacing(theme)}>
         <SafeAreaProvider>
           <AuthProvider>
-            <NotificationProvider>
-              <RootLayoutNav />
-              <StatusBar style="dark" />
-            </NotificationProvider>
+            <SchoolYearProvider>
+              <NotificationProvider>
+                <RootLayoutNav />
+                <StatusBar style="dark" />
+              </NotificationProvider>
+            </SchoolYearProvider>
           </AuthProvider>
         </SafeAreaProvider>
       </PaperProvider>

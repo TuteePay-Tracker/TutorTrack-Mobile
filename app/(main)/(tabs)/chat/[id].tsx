@@ -86,7 +86,7 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
   const isNearBottomRef = useRef(true);
-  const latestCountRef = useRef(0);
+  const lastMessageIdRef = useRef<string | null>(null);
   const oldestTimestampRef = useRef<any>(null);
   const isLoadingOlderRef = useRef(false);
 
@@ -121,7 +121,7 @@ export default function ChatScreen() {
       setOlderMessages([]);
       setLatestMessages([]);
       setHasMore(true);
-      latestCountRef.current = 0;
+      lastMessageIdRef.current = null;
       oldestTimestampRef.current = null;
       isLoadingOlderRef.current = false;
 
@@ -136,7 +136,7 @@ export default function ChatScreen() {
         });
 
         setLatestMessages(sortedAsc);
-        latestCountRef.current = sortedAsc.length;
+        lastMessageIdRef.current = sortedAsc.length > 0 ? sortedAsc[sortedAsc.length - 1].id : null;
 
         if (sortedAsc.length > 0) {
           oldestTimestampRef.current = sortedAsc[0].timestamp;
@@ -195,13 +195,13 @@ export default function ChatScreen() {
         return merged;
       });
 
-      const newCount = newestDesc.length;
-      if (newCount > latestCountRef.current && isNearBottomRef.current) {
+      const newestId = sortedAsc.length > 0 ? sortedAsc[sortedAsc.length - 1].id : null;
+      if (newestId && newestId !== lastMessageIdRef.current && isNearBottomRef.current) {
         requestAnimationFrame(() => {
           flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
         });
       }
-      latestCountRef.current = newCount;
+      lastMessageIdRef.current = newestId;
 
       const unreadMessage = newestDesc.find(
         (m) => m.senderId !== user.id && m.status === 'sent'
@@ -305,6 +305,11 @@ export default function ChatScreen() {
 
     try {
       await chatService.sendMessage(chatId, user.id, user.name, messageText, recipientId, replyToParam);
+
+      isNearBottomRef.current = true;
+      requestAnimationFrame(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      });
     } catch (error) {
       console.error('Failed to send message:', error);
       setInputText(messageText);
@@ -495,9 +500,6 @@ export default function ChatScreen() {
           ListHeaderComponent={renderHeader}
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.5}
-          maintainVisibleContentPosition={{
-            minIndexForVisible: 0,
-          }}
           getItemLayout={getItemLayout}
           windowSize={11}
           maxToRenderPerBatch={15}

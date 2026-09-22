@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   ScrollView,
@@ -16,9 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../../src/hooks/useAuth';
 import { useTutees } from '../../../src/hooks/useTutees';
 import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
+import { useSchoolYear } from '../../../src/contexts/SchoolYearContext';
+import { SchoolYearDropdown } from '../../../src/components/SchoolYearDropdown';
 import { formatCurrency } from '../../../src/utils/formatCurrency';
 import { formatTime12h } from '../../../src/utils/formatTime';
-import { paymentService, MonthlyRecord } from '../../../src/services/paymentService';
+import { paymentService, MonthlyRecord, getDayAttendance } from '../../../src/services/paymentService';
 import { assessmentService } from '../../../src/services/assessmentService';
 import { announcementService } from '../../../src/services/announcementService';
 import { Announcement } from '../../../src/types/announcement';
@@ -29,6 +31,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { AnimatedBar } from '../../../src/components/AnimatedBar';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../src/services/firebaseConfig';
+import { getTuteeYearTotals, belongsToSchoolYear, isMonthInSchoolYear } from '../../../src/utils/schoolYear';
 
 const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -38,16 +41,6 @@ function getGreeting(): string {
   if (hour >= 5 && hour < 12) return 'Good Morning,';
   if (hour >= 12 && hour < 18) return 'Good Afternoon,';
   return 'Good Evening,';
-}
-
-/** Returns the current school year label (Philippine: June–May convention). */
-function getCurrentSchoolYearLabel(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1; // 1-indexed
-  const startYear = month >= 6 ? year : year - 1;
-  const endYear = startYear + 1;
-  return `SY ${startYear}–${String(endYear).slice(-2)}`;
 }
 
 
@@ -88,14 +81,12 @@ function getRoomForSubject(subjectName: string): string {
 export default function ParentDashboard() {
   const { user } = useAuth();
   const { tutees, isLoading: tuteesLoading } = useTutees();
+  const { selectedYear, displayLabel } = useSchoolYear();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [payments, setPayments] = useState<Record<string, number>>({});
-  const [verifiedPayments, setVerifiedPayments] = useState<Record<string, number>>({});
   const [monthlyRecords, setMonthlyRecords] = useState<Record<string, MonthlyRecord[]>>({});
-  const [attendance, setAttendance] = useState<Record<string, { presentCount: number; totalSessions: number }>>({});
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [tutorName, setTutorName] = useState<string>('Tutor');
   const [refreshing, setRefreshing] = useState(false);
@@ -108,6 +99,24 @@ export default function ParentDashboard() {
   });
 
   const tutorId = user?.createdByTutorId || '';
+
+  const attendanceMap = useMemo(() => {
+    const map: Record<string, { presentCount: number; totalSessions: number }> = {};
+    tutees.forEach((t) => {
+      const recs = (monthlyRecords[t.id] || []).filter((r) => isMonthInSchoolYear(r.month, selectedYear));
+      let present = 0;
+      let total = 0;
+      recs.forEach((r) => {
+        (r.dayPayments || []).forEach((dp) => {
+          const att = getDayAttendance(dp);
+          if (att === 'present') present++;
+          if (att !== 'no-class') total++;
+        });
+      });
+      map[t.id] = { presentCount: present, totalSessions: total };
+    });
+    return map;
+  }, [tutees, monthlyRecords, selectedYear]);
 
   const loadData = useCallback(() => {
     if (!tutorId || !tutees.length) {
@@ -127,35 +136,19 @@ export default function ParentDashboard() {
       .catch((err) => console.error('Error fetching tutor name:', err));
 
     const unsubAnnouncements = announcementService.subscribe(tutorId, (data: Announcement[]) => {
-      setAnnouncements(data);
+      setAnnouncements(data.filter((a) => belongsToSchoolYear(selectedYear, a)));
     });
 
     const unsubAssessments = assessmentService.subscribeAll(tutorId, tuteeIds, (data: Assessment[]) => {
-      setAssessments(data);
+      setAssessments(data.filter((a) => belongsToSchoolYear(selectedYear, a)));
     });
 
     const unsubPayments: (() => void)[] = [];
-    const unsubAttendance: (() => void)[] = [];
 
     tutees.forEach((tutee) => {
       unsubPayments.push(
-        paymentService.subscribeTransactionsByTutee(tutorId, tutee.id, (total: number) => {
-          setPayments((prev) => ({ ...prev, [tutee.id]: total }));
-        })
-      );
-      unsubPayments.push(
-        paymentService.subscribeVerifiedAmountByTutee(tutorId, tutee.id, (verified: number) => {
-          setVerifiedPayments((prev) => ({ ...prev, [tutee.id]: verified }));
-        })
-      );
-      unsubPayments.push(
         paymentService.subscribeRecordsByTutee(tutorId, tutee.id, (recs) => {
           setMonthlyRecords((prev) => ({ ...prev, [tutee.id]: recs }));
-        })
-      );
-      unsubAttendance.push(
-        paymentService.subscribeAttendanceByTutee(tutorId, tutee.id, (att) => {
-          setAttendance((prev) => ({ ...prev, [tutee.id]: att }));
         })
       );
     });
@@ -166,9 +159,8 @@ export default function ParentDashboard() {
       unsubAnnouncements();
       unsubAssessments();
       unsubPayments.forEach((unsub) => unsub());
-      unsubAttendance.forEach((unsub) => unsub());
     };
-  }, [tutorId, tutees]);
+  }, [tutorId, tutees, selectedYear]);
 
   useEffect(() => {
     const cleanup = loadData();
@@ -234,11 +226,11 @@ export default function ParentDashboard() {
   let totalPresent = 0;
   let totalSessions = 0;
   tutees.forEach((t) => {
-    const attData = attendance[t.id] || { presentCount: 0, totalSessions: 0 };
+    const attData = attendanceMap[t.id] || { presentCount: 0, totalSessions: 0 };
     totalPresent += attData.presentCount;
     totalSessions += attData.totalSessions;
   });
-  const attendanceRate = totalSessions > 0 ? Math.round((totalPresent / totalSessions) * 100) : 100;
+  const attendanceRate = totalSessions > 0 ? Math.round((totalPresent / totalSessions) * 100) : -1;
   const absentCount = totalSessions - totalPresent;
 
   const avgScore = assessments.length > 0
@@ -263,16 +255,8 @@ export default function ParentDashboard() {
   });
   const subjectTuteeKeys = Object.keys(subjectTuteeAverages);
 
-  const totalPaid = Math.round(tutees.reduce((sum, t) => sum + (payments[t.id] || 0) + (verifiedPayments[t.id] || 0), 0));
-  const totalOutstanding = Math.max(Math.round(tutees.reduce((sum, t) => {
-    const recs = monthlyRecords[t.id];
-    if (recs && recs.length > 0) {
-      return sum + recs.filter((r) => r.totalBalance > 0).reduce((s, r) => s + (r.totalBalance || 0), 0);
-    }
-    const paid = (payments[t.id] || 0) + (verifiedPayments[t.id] || 0);
-    const due = (t.totalSessions || 0) * (t.ratePerSession || 0);
-    return sum + Math.max(due - paid, 0);
-  }, 0)), 0);
+  const totalPaid = Math.round(tutees.reduce((sum, t) => sum + (getTuteeYearTotals(t, selectedYear).totalPaid || 0), 0));
+  const totalOutstanding = Math.max(Math.round(tutees.reduce((sum, t) => sum + (getTuteeYearTotals(t, selectedYear).balance || 0), 0)), 0);
 
   const latestAnnouncement = announcements.length > 0 ? announcements[0] : null;
 
@@ -305,6 +289,7 @@ export default function ParentDashboard() {
     : `${totalChildren} Enrolled Students`;
 
   return (
+    <>
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[styles.contentContainer, { paddingTop: insets.top + 16, paddingBottom: tabBarHeight + 16 }]}
@@ -316,6 +301,7 @@ export default function ParentDashboard() {
           <Text style={styles.headerGreeting}>{getGreeting()}</Text>
           <Text style={styles.headerName}>{user.name || 'Parent'}</Text>
         </View>
+        <SchoolYearDropdown />
       </View>
 
       {/* Redesigned Child details banner */}
@@ -345,7 +331,9 @@ export default function ParentDashboard() {
             <Card.Content style={styles.kpiCardContentCustom}>
               <View style={[styles.kpiDot, { backgroundColor: '#10b981' }]} />
               <View>
-                <Text style={[styles.kpiValueCustom, { color: '#10b981' }]}>{attendanceRate}%</Text>
+                <Text style={[styles.kpiValueCustom, { color: '#10b981' }]}>
+                  {attendanceRate >= 0 ? `${attendanceRate}%` : '--'}
+                </Text>
                 <Text style={styles.kpiTitleCustom}>Attendance</Text>
               </View>
               <Text style={styles.kpiFooterCustom}>
@@ -378,7 +366,7 @@ export default function ParentDashboard() {
                 <Text style={[styles.kpiValueCustom, { color: '#10b981' }]}>{formatCurrency(totalPaid)}</Text>
                 <Text style={styles.kpiTitleCustom}>Total Paid</Text>
               </View>
-              <Text style={styles.kpiFooterCustom}>{getCurrentSchoolYearLabel()}</Text>
+              <Text style={styles.kpiFooterCustom}>{displayLabel}</Text>
             </Card.Content>
           </Card>
         </View>
@@ -477,7 +465,9 @@ export default function ParentDashboard() {
       <Card style={styles.sectionCard}>
         <Card.Content>
           <View style={styles.attendanceSummaryRow}>
-            <Text style={styles.attendancePercentage}>{attendanceRate}%</Text>
+            <Text style={styles.attendancePercentage}>
+              {attendanceRate >= 0 ? `${attendanceRate}%` : '--'}
+            </Text>
             <Text style={styles.attendanceMonthLabel}>
               {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}
             </Text>
@@ -485,7 +475,7 @@ export default function ParentDashboard() {
           <View style={styles.attendanceProgressBarTrack}>
             <AnimatedBar
               axis="horizontal"
-              width={`${attendanceRate}%`}
+              width={`${Math.max(attendanceRate, 0)}%`}
               backgroundColor="#0d5c46"
               style={styles.attendanceProgressBarFill}
               delay={100}
@@ -586,6 +576,7 @@ export default function ParentDashboard() {
         </TouchableOpacity>
       )}
     </ScrollView>
+    </>
   );
 }
 

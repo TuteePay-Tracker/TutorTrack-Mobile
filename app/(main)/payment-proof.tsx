@@ -22,11 +22,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useTutees } from '../../src/hooks/useTutees';
+import { useSchoolYear } from '../../src/contexts/SchoolYearContext';
 import { paymentService, MonthlyRecord } from '../../src/services/paymentService';
 import { Payment, PaymentMethod } from '../../src/types/payment';
 import { db } from '../../src/services/firebaseConfig';
 import { uploadToCloudinary } from '../../src/services/cloudinaryService';
 import { formatCurrency } from '../../src/utils/formatCurrency';
+import { getTuteeYearTotals, belongsToSchoolYear, isMonthInSchoolYear } from '../../src/utils/schoolYear';
 import { User } from '../../src/types/user';
 
 type MethodKey = 'gcash' | 'maya' | 'bank' | 'other';
@@ -85,6 +87,7 @@ export default function PaymentProofScreen() {
   const { tuteeId: preselectedTuteeId } = useLocalSearchParams<{ tuteeId?: string }>();
   const { user } = useAuth();
   const { tutees } = useTutees();
+  const { selectedYear } = useSchoolYear();
   const router = useRouter();
 
   const [selectedTuteeId, setSelectedTuteeId] = useState(preselectedTuteeId || '');
@@ -139,7 +142,7 @@ export default function PaymentProofScreen() {
 
   const selectedTutee = tutees.find((t) => t.id === selectedTuteeId);
   const balance = selectedTutee
-    ? Math.max((selectedTutee.totalSessions || 0) * (selectedTutee.ratePerSession || 0) - (selectedTutee.totalPaid || 0), 0)
+    ? Math.max(Math.round(getTuteeYearTotals(selectedTutee, selectedYear).balance || 0), 0)
     : 0;
 
   useEffect(() => {
@@ -161,18 +164,18 @@ export default function PaymentProofScreen() {
     setQrError(false);
 
     const unsubRecords = paymentService.subscribeRecordsByTutee(tutorId, selectedTuteeId, (records) => {
-      setMonthRecords(records);
+      setMonthRecords(records.filter((r) => isMonthInSchoolYear(r.month, selectedYear)));
       setRecordsLoading(false);
     });
     const unsubPayments = paymentService.subscribePaymentsByTutee(tutorId, selectedTuteeId, (pays) => {
-      setPayments(pays);
+      setPayments(pays.filter((p) => belongsToSchoolYear(selectedYear, p)));
     });
 
     return () => {
       unsubRecords();
       unsubPayments();
     };
-  }, [selectedTuteeId, user?.createdByTutorId]);
+  }, [selectedTuteeId, user?.createdByTutorId, selectedYear]);
 
   const unpaidRecords = monthRecords.filter((r) => r.totalBalance > 0);
   const unpaidBalance = unpaidRecords.reduce((sum, r) => sum + (r.totalBalance || 0), 0);
@@ -368,7 +371,7 @@ export default function PaymentProofScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.childScroll}>
                 {tutees.map((t) => {
                   const tuteeBalance = Math.max(
-                    (t.totalSessions || 0) * (t.ratePerSession || 0) - (t.totalPaid || 0),
+                    Math.round(getTuteeYearTotals(t, selectedYear).balance || 0),
                     0
                   );
                   const isSelected = t.id === selectedTuteeId;

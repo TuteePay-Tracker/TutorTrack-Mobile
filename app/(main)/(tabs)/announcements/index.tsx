@@ -5,15 +5,18 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../../src/hooks/useAuth';
+import { useSchoolYear } from '../../../../src/contexts/SchoolYearContext';
 import { useTabBarHeight } from '../../../../src/hooks/useTabBarHeight';
 import { announcementService } from '../../../../src/services/announcementService';
 import { Announcement } from '../../../../src/types/announcement';
 import { AnnouncementCard } from '../../../../src/components/AnnouncementCard';
 import { EmptyState } from '../../../../src/components/EmptyState';
+import { belongsToSchoolYear } from '../../../../src/utils/schoolYear';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 export default function AnnouncementsScreen() {
   const { user } = useAuth();
+  const { selectedYear } = useSchoolYear();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
   const router = useRouter();
@@ -29,14 +32,18 @@ export default function AnnouncementsScreen() {
     const unsubscribe = announcementService.subscribe(
       user.createdByTutorId,
       (data: Announcement[]) => {
-        setAnnouncements(data);
+        setAnnouncements(
+          data
+            .filter((a) => belongsToSchoolYear(selectedYear, a))
+            .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))
+        );
         setLoading(false);
         setRefreshing(false);
       }
     );
 
     return () => unsubscribe();
-  }, [user?.createdByTutorId]);
+  }, [user?.createdByTutorId, selectedYear]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -44,7 +51,11 @@ export default function AnnouncementsScreen() {
       announcementService.subscribe(
         user.createdByTutorId,
         (data: Announcement[]) => {
-          setAnnouncements(data);
+          setAnnouncements(
+            data
+              .filter((a) => belongsToSchoolYear(selectedYear, a))
+              .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))
+          );
           setRefreshing(false);
         }
       );

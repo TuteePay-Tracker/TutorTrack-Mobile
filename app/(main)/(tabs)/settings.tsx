@@ -5,14 +5,18 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../../src/hooks/useAuth';
+import { useSchoolYear } from '../../../src/contexts/SchoolYearContext';
+import { SchoolYearSelector } from '../../../src/components/SchoolYearSelector';
 import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth();
+  const { displayLabel } = useSchoolYear();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
   const [pushEnabled, setPushEnabled] = useState(false);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [sySelectorVisible, setSySelectorVisible] = useState(false);
 
   const initials = user?.name
     ? user.name
@@ -28,10 +32,15 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: tabBarHeight }]}>
-        <Text variant="headlineMedium" style={styles.header}>
-          Settings
-        </Text>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <MaterialCommunityIcons name="cog-outline" size={28} color="#2563eb" />
+        <View style={styles.headerText}>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={styles.headerSubtitle}>Manage your account</Text>
+        </View>
+      </View>
+
+      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]}>
 
         <Card style={styles.card}>
           <Card.Content>
@@ -79,6 +88,34 @@ export default function SettingsScreen() {
               disabled
               style={styles.input}
             />
+          </Card.Content>
+        </Card>
+
+        <Card style={styles.card}>
+          <Card.Content>
+            <Text variant="titleMedium" style={styles.sectionTitle}>
+              School Year
+            </Text>
+            <Divider style={styles.divider} />
+
+            <TouchableOpacity
+              style={styles.syRow}
+              onPress={() => setSySelectorVisible(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.syLabel}>
+                <MaterialCommunityIcons name="calendar-range" size={22} color="#2563eb" />
+                <View>
+                  <Text variant="bodyLarge" style={styles.syText}>
+                    {displayLabel}
+                  </Text>
+                  <Text variant="bodySmall" style={styles.syHint}>
+                    Tap to change school year
+                  </Text>
+                </View>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={24} color="#2563eb" />
+            </TouchableOpacity>
           </Card.Content>
         </Card>
 
@@ -158,6 +195,8 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      <SchoolYearSelector visible={sySelectorVisible} onClose={() => setSySelectorVisible(false)} />
     </>
   );
 }
@@ -172,9 +211,26 @@ const styles = StyleSheet.create({
     paddingBottom: 110,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    backgroundColor: '#eff6ff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  headerText: {
+    marginLeft: 12,
+  },
+  headerTitle: {
+    fontSize: 24,
     fontWeight: '700',
-    color: '#2563eb',
-    marginBottom: 20,
+    color: '#1a1a1a',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 2,
   },
   card: {
     marginBottom: 16,
@@ -225,6 +281,24 @@ const styles = StyleSheet.create({
   },
   switchText: {
     fontWeight: '500',
+  },
+  syRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  syLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  syText: {
+    fontWeight: '600',
+  },
+  syHint: {
+    color: '#6b7280',
+    marginTop: 1,
   },
   logoutButton: {
     marginTop: 8,

@@ -6,8 +6,10 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useTabBarHeight } from '../../src/hooks/useTabBarHeight';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useTutees } from '../../src/hooks/useTutees';
+import { useSchoolYear } from '../../src/contexts/SchoolYearContext';
 import { paymentService, AttendanceRecord } from '../../src/services/paymentService';
 import { EmptyState } from '../../src/components/EmptyState';
+import { isMonthInSchoolYear } from '../../src/utils/schoolYear';
 
 const DAY_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   present: { label: 'Present', color: '#059669', bg: '#f0fdf4' },
@@ -31,6 +33,7 @@ export default function AttendanceScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const { tutees, isLoading } = useTutees();
+  const { selectedYear } = useSchoolYear();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const tabBarHeight = useTabBarHeight();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
@@ -59,7 +62,7 @@ export default function AttendanceScreen() {
       tutorId,
       scopeTutees.map((t) => t.id),
       (recs) => {
-        setRecords(recs);
+        setRecords(recs.filter((r) => isMonthInSchoolYear(r.month, selectedYear)));
         setLoading(false);
       },
       () => {
@@ -69,7 +72,7 @@ export default function AttendanceScreen() {
     );
 
     return () => unsub();
-  }, [user?.createdByTutorId, scopeTuteeIds, reloadKey]);
+  }, [user?.createdByTutorId, scopeTuteeIds, selectedYear, reloadKey]);
 
   const attendanceMap = useMemo(() => {
     const map: Record<string, { presentCount: number; totalSessions: number }> = {};

@@ -8,7 +8,8 @@ import React, {
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useAuthContext } from './AuthContext';
-import { notificationService } from '../services/notificationService';
+import { notificationService, registerMessageReplyCategory } from '../services/notificationService';
+import { REPLY_ACTION_IDENTIFIER } from '../config/notifications';
 
 interface NotificationContextType {
   pushToken: string | null;
@@ -50,10 +51,23 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   const [pendingRoute, setPendingRoute] = useState<string | null>(null);
   const registeredUserIdRef = React.useRef<string | null>(null);
 
-  // Handle taps while the app is foregrounded or backgrounded.
+  // Register the Reply category so chat notifications show a direct-reply
+  // action (only matters on Android; harmless elsewhere).
+  useEffect(() => {
+    registerMessageReplyCategory();
+  }, []);
+
+  // Handle taps while the app is foregrounded or backgrounded. A reply from the
+  // notification's Reply action is sent directly instead of navigating.
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
+        if (response.actionIdentifier === REPLY_ACTION_IDENTIFIER) {
+          notificationService
+            .handleQuickReply(response)
+            .catch((error) => console.warn('Failed to process quick reply:', error));
+          return;
+        }
         const route = notificationService.handleNotificationResponse(response);
         if (route) setPendingRoute(route);
       }
@@ -62,11 +76,28 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.remove();
   }, []);
 
-  // Handle a cold start (app launched by tapping a notification).
+  // Handle a cold start (app launched by tapping a notification). A pending
+  // quick-reply is sent (idempotently) but never navigates.
   useEffect(() => {
-    notificationService.getLastNotificationRoute().then((route) => {
-      if (route) setPendingRoute(route);
-    });
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await Notifications.getLastNotificationResponseAsync();
+        if (!response || cancelled) return;
+        if (response.actionIdentifier === REPLY_ACTION_IDENTIFIER) {
+          await notificationService.handleQuickReply(response);
+          return;
+        }
+        const route = notificationService.handleNotificationResponse(response);
+        if (route) setPendingRoute(route);
+      } catch (error) {
+        console.warn('Failed to handle cold-start notification:', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Register for push + run the payment-due daily check when a user signs in.

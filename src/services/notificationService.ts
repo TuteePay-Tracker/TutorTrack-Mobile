@@ -20,6 +20,8 @@ import {
   PAYMENT_REMINDER_DAYS_BEFORE,
   EXPO_PUSH_API_URL,
   NOTIFICATION_CHANNEL_ID,
+  MESSAGE_ACTIONS_CATEGORY_ID,
+  REPLY_ACTION_IDENTIFIER,
 } from '../config/notifications';
 
 Notifications.setNotificationHandler({
@@ -31,6 +33,43 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
+
+// Ensure the high-importance channel exists before any message can arrive so
+// background/system-delivered notifications post visibly instead of falling
+// back to Android's low-importance default channel.
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNEL_ID, {
+    name: 'Tutor Track',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+    enableVibrate: true,
+    lightColor: '#2563eb',
+  }).catch((error) => console.warn('Failed to create notification channel:', error));
+}
+
+// Registers the category that gives chat notifications their Reply action.
+// Registration persists on-device, so calling once at startup is enough for
+// both local and remote notifications that reference this category id.
+export async function registerMessageReplyCategory(): Promise<void> {
+  try {
+    await Notifications.setNotificationCategoryAsync(MESSAGE_ACTIONS_CATEGORY_ID, [
+      {
+        identifier: REPLY_ACTION_IDENTIFIER,
+        buttonTitle: 'Reply',
+        textInput: {
+          submitButtonTitle: 'Send',
+          placeholder: 'Reply…',
+        },
+        options: {
+          // Keep the app in the background while the reply is sent.
+          opensAppToForeground: false,
+        },
+      },
+    ]);
+  } catch (error) {
+    console.warn('Failed to register notification reply category:', error);
+  }
+}
 
 export type PushData = Record<string, string | number | boolean>;
 
@@ -115,15 +154,6 @@ export const notificationService = {
     if (finalStatus !== 'granted') {
       console.warn('Push notification permission not granted');
       return null;
-    }
-
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNEL_ID, {
-        name: 'default',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#2563eb',
-      });
     }
 
     const projectId =
@@ -275,7 +305,9 @@ export const notificationService = {
       tokens,
       title: senderName || 'New message',
       body: preview,
-      data: { type: 'chat', chatId },
+      // `categoryId` inside `data` is read by expo-notifications on Android to
+      // attach the Reply direct-reply action to the notification.
+      data: { type: 'chat', chatId, categoryId: MESSAGE_ACTIONS_CATEGORY_ID },
     });
   },
 
@@ -480,6 +512,60 @@ export const notificationService = {
     } catch (error) {
       console.warn('Failed to read last notification response:', error);
       return null;
+    }
+  },
+
+  /**
+   * Handles a direct reply sent from a notification's Reply action. The text
+   * is written to the correct chat via the normal send path, so it lands in
+   * Firestore, bumps the recipient's unread count, and appears instantly in the
+   * chat via the existing real-time subscription.
+   *
+   * Returns true when a quick reply was processed (or already had been), and
+   * false when the response is not a quick reply or could not be handled.
+   */
+  async handleQuickReply(response: Notifications.NotificationResponse): Promise<boolean> {
+    try {
+      if (response.actionIdentifier !== REPLY_ACTION_IDENTIFIER) return false;
+
+      const data = (response.notification.request.content.data || {}) as Record<string, any>;
+      if (data?.type !== 'chat') return false;
+
+      const chatId = data.chatId as string | undefined;
+      const text = (response.userText || '').trim();
+      const currentUser = auth.currentUser;
+      if (!chatId || !text || !currentUser) return false;
+
+      // Idempotency: the same response can be re-delivered (listener re-fire or
+      // cold-start replay via getLastNotificationResponseAsync). Track it so the
+      // reply is never written more than once.
+      const requestId = response.notification.request.identifier;
+      const storageKey = `quickReply_${requestId}_${response.actionIdentifier}`;
+      const alreadyProcessed = await AsyncStorage.getItem(storageKey);
+      if (alreadyProcessed) return true;
+
+      const threadSnap = await getDoc(doc(db, 'chats', chatId));
+      if (!threadSnap.exists()) return false;
+      const thread = threadSnap.data();
+
+      const isParent = thread.parentId === currentUser.uid;
+      const isTutorSender = thread.tutorId === currentUser.uid;
+      if (!isParent && !isTutorSender) {
+        console.warn('[quickReply] User is not a participant of this chat');
+        return false;
+      }
+
+      const recipientId = isParent ? thread.tutorId : thread.parentId;
+      const senderName = isParent ? thread.parentName || 'Parent' : thread.tutorName || 'Tutor';
+
+      const { chatService } = await import('./chatService');
+      await chatService.sendMessage(chatId, currentUser.uid, senderName, text, recipientId);
+
+      await AsyncStorage.setItem(storageKey, '1');
+      return true;
+    } catch (error) {
+      console.warn('Failed to send quick reply:', error);
+      return false;
     }
   },
 };

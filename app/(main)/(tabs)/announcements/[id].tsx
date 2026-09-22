@@ -5,8 +5,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../../../src/hooks/useAuth';
+import { useSchoolYear } from '../../../../src/contexts/SchoolYearContext';
 import { announcementService } from '../../../../src/services/announcementService';
 import { Announcement } from '../../../../src/types/announcement';
+import { belongsToSchoolYear } from '../../../../src/utils/schoolYear';
 
 const priorityConfig = {
   high: { bg: '#fef2f2', border: '#fecaca', text: '#dc2626', label: 'HIGH' },
@@ -17,6 +19,7 @@ const priorityConfig = {
 export default function AnnouncementDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { selectedYear } = useSchoolYear();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
@@ -28,14 +31,14 @@ export default function AnnouncementDetailScreen() {
     const unsubscribe = announcementService.subscribe(
       user.createdByTutorId,
       (data: Announcement[]) => {
-        const found = data.find((a) => a.id === id);
+        const found = data.find((a) => a.id === id && belongsToSchoolYear(selectedYear, a));
         setAnnouncement(found || null);
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [id, user?.createdByTutorId]);
+  }, [id, user?.createdByTutorId, selectedYear]);
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return '';

@@ -6,10 +6,12 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useTabBarHeight } from '../../src/hooks/useTabBarHeight';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useTutees } from '../../src/hooks/useTutees';
+import { useSchoolYear } from '../../src/contexts/SchoolYearContext';
 import { assessmentService } from '../../src/services/assessmentService';
 import { Assessment } from '../../src/types/assessment';
 import { formatDate } from '../../src/utils/formatDate';
 import { EmptyState } from '../../src/components/EmptyState';
+import { belongsToSchoolYear } from '../../src/utils/schoolYear';
 
 const assessmentMonth = (a: Assessment) =>
   typeof a.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(a.date)
@@ -28,6 +30,7 @@ const monthLabel = (ym: string) => {
 export default function AssessmentsScreen() {
   const { user } = useAuth();
   const { tutees } = useTutees();
+  const { selectedYear } = useSchoolYear();
   const tabBarHeight = useTabBarHeight();
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
@@ -52,12 +55,16 @@ export default function AssessmentsScreen() {
     }
 
     const unsub = assessmentService.subscribeAll(user.createdByTutorId, tuteeIds, (data) => {
-      setAssessments(data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setAssessments(
+        data
+          .filter((a) => belongsToSchoolYear(selectedYear, a))
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      );
       setLoading(false);
     });
 
     return () => unsub();
-  }, [user?.createdByTutorId, focusTuteeId, tutees]);
+  }, [user?.createdByTutorId, focusTuteeId, tutees, selectedYear]);
 
   if (loading) {
     return (

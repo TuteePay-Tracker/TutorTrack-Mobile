@@ -4,6 +4,7 @@ import { Text, Searchbar, Avatar, Badge, ActivityIndicator } from 'react-native-
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTabBarHeight } from '../../../../src/hooks/useTabBarHeight';
 import { useAuth } from '../../../../src/hooks/useAuth';
 import { useTutees } from '../../../../src/hooks/useTutees';
@@ -101,8 +102,9 @@ const ThreadListItem = React.memo(function ThreadListItem({
 
 export default function ChatThreadListScreen() {
   const { user } = useAuth();
-  const { tutees } = useTutees();
+  const { tutees, isLoading: tuteesLoading } = useTutees();
   const tabBarHeight = useTabBarHeight();
+  const insets = useSafeAreaInsets();
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -213,18 +215,29 @@ export default function ChatThreadListScreen() {
     [user]
   );
 
+  const visibleThreads = useMemo(() => {
+    const scopedTuteeIds = new Set(tutees.map((t) => t.id));
+    const scoped = threads.filter(
+      (thread) =>
+        scopedTuteeIds.has(thread.id) || scopedTuteeIds.has(thread.tuteeId || '')
+    );
+    return tuteesLoading ? threads : scoped;
+  }, [threads, tutees, tuteesLoading]);
+
   const filteredThreads = useMemo(() => {
-    if (!searchQuery) return threads;
+    if (!searchQuery) return visibleThreads;
     const q = searchQuery.toLowerCase();
-    return threads.filter((thread) => {
+    return visibleThreads.filter((thread) => {
       const partnerName = getPartnerName(thread).toLowerCase();
       const studentName = (thread.tuteeName || '').toLowerCase();
       return partnerName.includes(q) || studentName.includes(q);
     });
-  }, [threads, searchQuery, getPartnerName]);
+  }, [visibleThreads, searchQuery, getPartnerName]);
 
   const tuteesWithoutThread = useMemo(() => {
-    return tutees.filter((tutee) => !threads.some((t) => t.tuteeId === tutee.id));
+    return tutees.filter(
+      (tutee) => !threads.some((t) => t.id === tutee.id || t.tuteeId === tutee.id)
+    );
   }, [tutees, threads]);
 
   const filteredTuteesWithoutThread = useMemo(() => {
@@ -327,13 +340,17 @@ export default function ChatThreadListScreen() {
     <>
       <Stack.Screen
         options={{
-          headerShown: true,
-          title: 'Messages',
-          headerTintColor: '#2563eb',
-          headerStyle: { backgroundColor: '#eff6ff' },
+          headerShown: false,
         }}
       />
       <View style={styles.container}>
+        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+          <MaterialCommunityIcons name="chat-outline" size={28} color="#2563eb" />
+          <View style={styles.headerText}>
+            <Text style={styles.headerTitle}>Messages</Text>
+            <Text style={styles.headerSubtitle}>Chat with your tutor</Text>
+          </View>
+        </View>
         <Searchbar
           placeholder="Search messages or student..."
           onChangeText={setSearchQuery}
@@ -387,6 +404,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#eff6ff',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    backgroundColor: '#eff6ff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  headerText: {
+    marginLeft: 12,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 2,
   },
   searchbar: {
     margin: scale(12),

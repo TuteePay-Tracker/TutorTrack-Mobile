@@ -5,8 +5,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
 import { useAuth } from '../../../src/hooks/useAuth';
+import { useSchoolYear } from '../../../src/contexts/SchoolYearContext';
 import { tuteeService } from '../../../src/services/tuteeService';
-import { paymentService, PaymentTransaction } from '../../../src/services/paymentService';
+import { paymentService, PaymentTransaction, getDayAttendance } from '../../../src/services/paymentService';
 import { Payment } from '../../../src/types/payment';
 import { assessmentService } from '../../../src/services/assessmentService';
 import { Tutee } from '../../../src/types/tutee';
@@ -14,6 +15,8 @@ import { Assessment } from '../../../src/types/assessment';
 import { formatCurrency } from '../../../src/utils/formatCurrency';
 import { formatDate } from '../../../src/utils/formatDate';
 import { formatTime12h } from '../../../src/utils/formatTime';
+import { getTuteeYearTotals, belongsToSchoolYear, isMonthInSchoolYear } from '../../../src/utils/schoolYear';
+import { compareScheduleSlots } from '../../../src/utils/scheduleSort';
 
 type MergedTxn = {
   id: string;
@@ -35,6 +38,7 @@ const STATUS_CONFIG = {
 export default function ChildDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { selectedYear } = useSchoolYear();
   const router = useRouter();
   const tabBarHeight = useTabBarHeight();
   const [tutee, setTutee] = useState<Tutee | null>(null);
@@ -58,22 +62,34 @@ export default function ChildDetailsScreen() {
         setTutee(tuteeData);
 
         const unsubTxn = paymentService.subscribeTransactionsByTuteeList(tutorId, id, (data) => {
-          setTransactions(data);
+          setTransactions(data.filter((t) => belongsToSchoolYear(selectedYear, t)));
         });
         unsubs.push(unsubTxn);
 
         const unsubPayments = paymentService.subscribePaymentsByTutee(tutorId, id, (data) => {
-          setPayments(data);
+          setPayments(data.filter((p) => belongsToSchoolYear(selectedYear, p)));
         });
         unsubs.push(unsubPayments);
 
         const unsubAssess = assessmentService.subscribeByTutee(tutorId, id, (data) => {
-          setAssessments(data);
+          setAssessments(data.filter((a) => belongsToSchoolYear(selectedYear, a)));
         });
         unsubs.push(unsubAssess);
 
-        const unsubAtt = paymentService.subscribeAttendanceByTutee(tutorId, id, setAttendance);
-        unsubs.push(unsubAtt);
+        const unsubRecords = paymentService.subscribeRecordsByTutee(tutorId, id, (recs) => {
+          const filtered = recs.filter((r) => isMonthInSchoolYear(r.month, selectedYear));
+          let present = 0;
+          let total = 0;
+          filtered.forEach((r) => {
+            (r.dayPayments || []).forEach((dp) => {
+              const att = getDayAttendance(dp);
+              if (att === 'present') present++;
+              if (att !== 'no-class') total++;
+            });
+          });
+          setAttendance({ presentCount: present, totalSessions: total });
+        });
+        unsubs.push(unsubRecords);
 
         setLoading(false);
       } catch (error) {
@@ -87,7 +103,7 @@ export default function ChildDetailsScreen() {
     return () => {
       unsubs.forEach((unsub) => unsub());
     };
-  }, [id, user?.createdByTutorId]);
+  }, [id, user?.createdByTutorId, selectedYear]);
 
   if (loading) {
     return (
@@ -111,7 +127,7 @@ export default function ChildDetailsScreen() {
   const attendanceRate =
     attendance.totalSessions > 0
       ? Math.round((attendance.presentCount / attendance.totalSessions) * 100)
-      : 100;
+      : -1;
 
   const deduplicatedTransactions = transactions.filter((t) => {
     return !payments.some(
@@ -195,7 +211,7 @@ export default function ChildDetailsScreen() {
                   <MaterialCommunityIcons name="chevron-right" size={18} color="#2563eb" />
                 </View>
               </TouchableOpacity>
-              {tutee.schedule.map((slot, index) => {
+              {[...tutee.schedule].sort(compareScheduleSlots).map((slot, index) => {
                 if (typeof slot === 'object' && slot !== null && 'startTime' in slot && 'endTime' in slot) {
                   return (
                     <View key={index} style={styles.scheduleItem}>
@@ -273,9 +289,9 @@ export default function ChildDetailsScreen() {
                 </Text>
                 <Text style={styles.attendanceSub}>Present and scheduled classes</Text>
               </View>
-              <View style={[styles.rateBadge, { backgroundColor: attendanceRate >= 80 ? '#dbeafe' : attendanceRate >= 50 ? '#fef3c7' : '#fef2f2' }]}>
-                <Text style={[styles.rateText, { color: attendanceRate >= 80 ? '#2563eb' : attendanceRate >= 50 ? '#d97706' : '#dc2626' }]}>
-                  {attendanceRate}%
+              <View style={[styles.rateBadge, { backgroundColor: attendanceRate < 0 ? '#f3f4f6' : attendanceRate >= 80 ? '#dbeafe' : attendanceRate >= 50 ? '#fef3c7' : '#fef2f2' }]}>
+                <Text style={[styles.rateText, { color: attendanceRate < 0 ? '#9ca3af' : attendanceRate >= 80 ? '#2563eb' : attendanceRate >= 50 ? '#d97706' : '#dc2626' }]}>
+                  {attendanceRate >= 0 ? `${attendanceRate}%` : '--'}
                 </Text>
               </View>
             </View>

@@ -40,8 +40,9 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/playstore-icon.png",
-          "color": "#15803d"
+          "icon": "./assets/notification-icon.png",
+          "color": "#2563eb",
+          "defaultChannel": "default"
         }
       ]
     ],
