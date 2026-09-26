@@ -1,22 +1,84 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Modal, TouchableOpacity } from 'react-native';
 import { Text, Card, TextInput, Button, Avatar, Divider, Switch } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../../src/hooks/useAuth';
 import { useSchoolYear } from '../../../src/contexts/SchoolYearContext';
+import { useNotifications } from '../../../src/contexts/NotificationContext';
+import { notificationService, isPushDisabled, setPushDisabled } from '../../../src/services/notificationService';
 import { SchoolYearSelector } from '../../../src/components/SchoolYearSelector';
 import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth();
+  const { pushToken } = useNotifications();
   const { displayLabel } = useSchoolYear();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [sySelectorVisible, setSySelectorVisible] = useState(false);
+
+  // Keep the switch in sync with the real notification state every time the
+  // Settings screen is shown (e.g. right after allowing the login-time prompt).
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        try {
+          const perms = await Notifications.getPermissionsAsync();
+          const disabled = await isPushDisabled();
+          if (active) {
+            setPushEnabled(!disabled && (perms.granted === true || !!pushToken));
+          }
+        } catch (error) {
+          console.warn('Failed to read notification status:', error);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [pushToken])
+  );
+
+  const handleTogglePush = async (value: boolean) => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try {
+      if (value) {
+        await setPushDisabled(false);
+        const perms = await Notifications.getPermissionsAsync();
+        if (!perms.granted) {
+          const requested = await Notifications.requestPermissionsAsync();
+          if (!requested.granted) {
+            setPushEnabled(false);
+            Alert.alert(
+              'Permission Denied',
+              'Enable notifications for this app in your device settings to receive push notifications.'
+            );
+            return;
+          }
+        }
+        await notificationService.registerForPushNotifications();
+        setPushEnabled(true);
+      } else {
+        setPushEnabled(false);
+        await setPushDisabled(true);
+        if (user?.id && pushToken) {
+          await notificationService.removeToken(user.id, pushToken);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to update push notifications:', error);
+      Alert.alert('Error', 'Failed to update notification settings. Please try again.');
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const initials = user?.name
     ? user.name
@@ -75,13 +137,6 @@ export default function SettingsScreen() {
               style={styles.input}
             />
             <TextInput
-              label="Email"
-              value={user?.email?.replace('@tuteepay.local', '') ?? ''}
-              mode="outlined"
-              disabled
-              style={styles.input}
-            />
-            <TextInput
               label="Phone Number"
               value={user?.contactNumber ?? ''}
               mode="outlined"
@@ -135,7 +190,8 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={pushEnabled}
-                onValueChange={setPushEnabled}
+                onValueChange={handleTogglePush}
+                disabled={pushBusy}
                 color="#2563eb"
               />
             </View>
@@ -151,8 +207,7 @@ export default function SettingsScreen() {
         >
           Logout
         </Button>
-
-        <Text style={styles.version}>v1.0.0</Text>
+        <Text style={styles.version}>.</Text>
       </ScrollView>
 
       <Modal
@@ -306,11 +361,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   version: {
-    textAlign: 'center',
-    color: '#999',
-    marginTop: 20,
-    fontSize: 13,
-  },
+  textAlign: 'center',
+  color: '#999',
+  marginTop: 20,
+  fontSize: 13,
+},
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.4)',

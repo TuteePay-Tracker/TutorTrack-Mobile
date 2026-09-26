@@ -4,18 +4,27 @@ import { Text, TextInput, Button, Snackbar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../../src/hooks/useAuth';
+import { ReCaptchaWidget } from '../../src/components/ReCaptchaWidget';
 
 export default function LoginScreen() {
   const { login, isLoading } = useAuth();
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [snackVisible, setSnackVisible] = useState(false);
 
   const handleLogin = async () => {
     if (!phone || !password) {
       setError('Please fill in all fields');
+      setSnackVisible(true);
+      return;
+    }
+
+    const siteKey = process.env.EXPO_PUBLIC_RECAPTCHA_SITE_KEY;
+    if (siteKey && !captchaToken) {
+      setError('Please complete the reCAPTCHA verification to continue');
       setSnackVisible(true);
       return;
     }
@@ -78,14 +87,10 @@ export default function LoginScreen() {
               }
             />
 
-            <Button
-              mode="text"
-              onPress={() => router.push('/(auth)/forgot-password')}
-              style={styles.forgotButton}
-              labelStyle={styles.forgotText}
-            >
-              Forgot Password?
-            </Button>
+
+
+            {/* reCAPTCHA Widget */}
+            <ReCaptchaWidget onVerify={setCaptchaToken} />
 
             <Button
               mode="contained"

@@ -115,6 +115,29 @@ function pushLogKey(recordId: string): string {
   return `paymentDuePush_${recordId}`;
 }
 
+const PUSH_DISABLED_KEY = 'pushNotificationsDisabled';
+
+export async function isPushDisabled(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(PUSH_DISABLED_KEY)) === 'true';
+  } catch (error) {
+    console.warn('Failed to read push disabled flag:', error);
+    return false;
+  }
+}
+
+export async function setPushDisabled(disabled: boolean): Promise<void> {
+  try {
+    if (disabled) {
+      await AsyncStorage.setItem(PUSH_DISABLED_KEY, 'true');
+    } else {
+      await AsyncStorage.removeItem(PUSH_DISABLED_KEY);
+    }
+  } catch (error) {
+    console.warn('Failed to persist push disabled flag:', error);
+  }
+}
+
 export function notificationRouteFromData(data: Record<string, any>): string | null {
   if (!data || typeof data !== 'object') return null;
   const type = data.type as string | undefined;

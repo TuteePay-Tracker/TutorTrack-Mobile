@@ -8,15 +8,21 @@ import React, {
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useAuthContext } from './AuthContext';
-import { notificationService, registerMessageReplyCategory } from '../services/notificationService';
+import {
+  notificationService,
+  registerMessageReplyCategory,
+  isPushDisabled,
+} from '../services/notificationService';
 import { REPLY_ACTION_IDENTIFIER } from '../config/notifications';
 
 interface NotificationContextType {
   pushToken: string | null;
+  pushEnabled: boolean;
 }
 
 const NotificationContext = createContext<NotificationContextType>({
   pushToken: null,
+  pushEnabled: false,
 });
 
 export const useNotifications = () => useContext(NotificationContext);
@@ -48,6 +54,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuthContext();
   const router = useRouter();
   const [pushToken, setPushToken] = useState<string | null>(null);
+  const [pushEnabled, setPushEnabled] = useState(false);
   const [pendingRoute, setPendingRoute] = useState<string | null>(null);
   const registeredUserIdRef = React.useRef<string | null>(null);
 
@@ -106,20 +113,33 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
 
     if (registeredUserIdRef.current !== user.id) {
       registeredUserIdRef.current = user.id;
-      notificationService
-        .registerForPushNotifications()
-        .then((token) => {
-          if (token) setPushToken(token);
+      isPushDisabled()
+        .then((disabled) => {
+          if (disabled) {
+            setPushEnabled(false);
+            return;
+          }
+          return notificationService
+            .registerForPushNotifications()
+            .then((token) => {
+              if (token) setPushToken(token);
+              setPushEnabled(true);
+            });
         })
         .catch((error) => {
           console.warn('Failed to register for push notifications:', error);
         });
     }
 
+    // Payment reminders (local + remote push) only apply when notifications
+    // have not been disabled from the Settings screen.
     if (user.role === 'parent') {
-      notificationService
-        .schedulePaymentReminders()
-        .catch((error) => console.warn('Failed to check payment reminders:', error));
+      isPushDisabled().then((disabled) => {
+        if (disabled) return;
+        notificationService
+          .schedulePaymentReminders()
+          .catch((error) => console.warn('Failed to check payment reminders:', error));
+      });
     }
   }, [user]);
 
@@ -133,7 +153,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   }, [user, pendingRoute, router]);
 
   return (
-    <NotificationContext.Provider value={{ pushToken }}>
+    <NotificationContext.Provider value={{ pushToken, pushEnabled }}>
       {children}
     </NotificationContext.Provider>
   );
