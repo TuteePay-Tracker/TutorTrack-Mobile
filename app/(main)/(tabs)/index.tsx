@@ -188,9 +188,17 @@ export default function ParentDashboard() {
   };
 
   const getDueDateLabel = () => {
+    const dueDay = user?.paymentMethods?.dueDay ?? 5;
     const today = new Date();
-    today.setDate(15);
-    return `DUE ${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}`;
+    const maxDays = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const targetDay = Math.min(Math.max(1, dueDay), maxDays);
+    const dueDate = new Date(today.getFullYear(), today.getMonth(), targetDay);
+    if (today.getDate() > targetDay) {
+      const nextMax = new Date(today.getFullYear(), today.getMonth() + 2, 0).getDate();
+      const nextTargetDay = Math.min(Math.max(1, dueDay), nextMax);
+      dueDate.setMonth(today.getMonth() + 1, nextTargetDay);
+    }
+    return `DUE ${dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}`;
   };
 
   if (tuteesLoading || loading) {

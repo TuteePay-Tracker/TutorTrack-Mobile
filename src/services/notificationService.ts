@@ -95,10 +95,12 @@ function parseMonth(month: string): Date | null {
   return new Date(Number(match[1]), Number(match[2]) - 1, 1);
 }
 
-function getDueDate(month: string): Date | null {
+function getDueDate(month: string, dueDay: number = 5): Date | null {
   const base = parseMonth(month);
   if (!base) return null;
-  return new Date(base.getFullYear(), base.getMonth(), PAYMENT_DUE_DAY);
+  const maxDays = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+  const day = Math.min(Math.max(1, dueDay), maxDays);
+  return new Date(base.getFullYear(), base.getMonth(), day);
 }
 
 function addDays(date: Date, days: number): Date {
@@ -461,6 +463,18 @@ export const notificationService = {
     const linkedStudentIds = (profile.linkedStudentIds || []) as string[];
     if (!tutorId || linkedStudentIds.length === 0) return;
 
+    let tutorDueDay = 5;
+    if (tutorId) {
+      try {
+        const tutorDoc = await getDoc(doc(db, 'users', tutorId));
+        if (tutorDoc.exists() && tutorDoc.data().paymentMethods?.dueDay) {
+          tutorDueDay = tutorDoc.data().paymentMethods.dueDay;
+        }
+      } catch (err) {
+        console.warn('Failed to fetch tutor dueDay for reminders:', err);
+      }
+    }
+
     const today = new Date();
     const todayKey = toDateKey(today);
 
@@ -485,7 +499,7 @@ export const notificationService = {
           continue;
         }
 
-        const dueDate = getDueDate(record.month);
+        const dueDate = getDueDate(record.month, tutorDueDay);
         if (!dueDate) continue;
         const reminderStart = addDays(dueDate, -PAYMENT_REMINDER_DAYS_BEFORE);
 

@@ -70,16 +70,26 @@ function RootLayoutNav() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const isChangePasswordScreen = (segments as string[]).includes('change-password');
 
     if (!user && !inAuthGroup) {
       setSettled(false);
       router.replace('/(auth)/login');
-    } else if (user && inAuthGroup) {
-      setSettled(false);
+    } else if (user) {
       if (user.mustChangePassword) {
-        router.replace('/(auth)/change-password');
+        if (!isChangePasswordScreen) {
+          setSettled(false);
+          router.replace('/(auth)/change-password');
+        } else {
+          setSettled(true);
+        }
       } else {
-        router.replace('/(main)');
+        if (inAuthGroup) {
+          setSettled(false);
+          router.replace('/(main)');
+        } else {
+          setSettled(true);
+        }
       }
     } else {
       setSettled(true);

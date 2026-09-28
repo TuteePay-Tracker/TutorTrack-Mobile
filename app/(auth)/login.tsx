@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../../src/hooks/useAuth';
 import { ReCaptchaWidget } from '../../src/components/ReCaptchaWidget';
+import { normalizePhoneNumber, isValidPHPhoneNumber } from '../../src/utils/phoneUtils';
 
 export default function LoginScreen() {
   const { login, isLoading } = useAuth();
@@ -29,10 +30,9 @@ export default function LoginScreen() {
       return;
     }
 
-    const sanitizedPhone = phone.replace(/\D/g, '');
-    // Standard Philippine mobile number: 11 digits starting with 09
-    if (!/^09\d{9}$/.test(sanitizedPhone)) {
-      setError('Please enter a valid mobile number (e.g., 09XXXXXXXXX)');
+    const sanitizedPhone = normalizePhoneNumber(phone);
+    if (!isValidPHPhoneNumber(sanitizedPhone)) {
+      setError('Please enter a valid mobile number (e.g., 09XXXXXXXXX or +63 9XX XXX XXXX)');
       setSnackVisible(true);
       return;
     }
@@ -40,6 +40,26 @@ export default function LoginScreen() {
     try {
       await login(`${sanitizedPhone}@tuteepay.local`, password);
     } catch (err: any) {
+      // Fallback check for legacy accounts created with 639XXXXXXXXX format
+      if (
+        sanitizedPhone.startsWith('09') &&
+        (err.code === 'auth/user-not-found' ||
+         err.code === 'auth/invalid-credential' ||
+         err.message?.includes('user-not-found') ||
+         err.message?.includes('invalid-credential') ||
+         err.message?.includes('No account found') ||
+         err.message?.includes('Invalid email or password'))
+      ) {
+        try {
+          const altPhone = '63' + sanitizedPhone.slice(1);
+          await login(`${altPhone}@tuteepay.local`, password);
+          return;
+        } catch (fallbackErr: any) {
+          setError(fallbackErr.message || err.message || 'Login failed');
+          setSnackVisible(true);
+          return;
+        }
+      }
       setError(err.message || 'Login failed');
       setSnackVisible(true);
     }
@@ -60,11 +80,11 @@ export default function LoginScreen() {
             <TextInput
               label="Phone Number"
               value={phone}
-              onChangeText={(text) => setPhone(text.replace(/[^\d]/g, ''))}
+              onChangeText={(text) => setPhone(text.replace(/[^\d\s+-]/g, ''))}
               mode="outlined"
               keyboardType="phone-pad"
               autoCorrect={false}
-              maxLength={11}
+              maxLength={20}
               style={styles.input}
               outlineStyle={styles.inputOutline}
               left={<TextInput.Icon icon="phone-outline" />}

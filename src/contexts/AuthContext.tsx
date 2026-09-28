@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../services/firebaseConfig';
 import { User } from '../types/user';
 
@@ -30,31 +30,65 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubUserDoc: (() => void) | null = null;
+    let unsubTutorDoc: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      if (unsubUserDoc) { unsubUserDoc(); unsubUserDoc = null; }
+      if (unsubTutorDoc) { unsubTutorDoc(); unsubTutorDoc = null; }
+
       if (firebaseUser) {
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setUser({
-            id: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            name: userData.name || firebaseUser.displayName || '',
-            role: userData.role || 'tutor',
-            mustChangePassword: userData.mustChangePassword || false,
-            linkedStudentIds: userData.linkedStudentIds || [],
-            createdByTutorId: userData.createdByTutorId,
-            contactNumber: userData.contactNumber,
-            photoUrl: userData.photoUrl || null,
-            paymentMethods: userData.paymentMethods || {},
-          });
-        }
+        unsubUserDoc = onSnapshot(doc(db, 'users', firebaseUser.uid), (userSnap) => {
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            let paymentMethods = userData.paymentMethods || {};
+
+            const updateUserState = (effectivePaymentMethods: any) => {
+              setUser({
+                id: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                name: userData.name || firebaseUser.displayName || '',
+                role: userData.role || 'tutor',
+                mustChangePassword: userData.mustChangePassword || false,
+                linkedStudentIds: userData.linkedStudentIds || [],
+                createdByTutorId: userData.createdByTutorId,
+                contactNumber: userData.contactNumber,
+                photoUrl: userData.photoUrl || null,
+                paymentMethods: effectivePaymentMethods,
+              });
+              setIsLoading(false);
+            };
+
+            if (userData.role === 'parent' && userData.createdByTutorId) {
+              if (unsubTutorDoc) unsubTutorDoc();
+              unsubTutorDoc = onSnapshot(doc(db, 'users', userData.createdByTutorId), (tutorSnap) => {
+                const tutorPaymentMethods = tutorSnap.exists() ? (tutorSnap.data().paymentMethods || {}) : {};
+                updateUserState(tutorPaymentMethods);
+              }, (err) => {
+                console.warn('Error listening to tutor doc:', err);
+                updateUserState(paymentMethods);
+              });
+            } else {
+              updateUserState(paymentMethods);
+            }
+          } else {
+            setIsLoading(false);
+          }
+        }, (err) => {
+          console.warn('Error listening to user doc:', err);
+          setIsLoading(false);
+        });
       } else {
         setUser(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubUserDoc) unsubUserDoc();
+      if (unsubTutorDoc) unsubTutorDoc();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -102,6 +136,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
     if (userDoc.exists()) {
       const userData = userDoc.data();
+      let paymentMethods = userData.paymentMethods || {};
+      if (userData.role === 'parent' && userData.createdByTutorId) {
+        try {
+          const tutorDoc = await getDoc(doc(db, 'users', userData.createdByTutorId));
+          if (tutorDoc.exists() && tutorDoc.data().paymentMethods) {
+            paymentMethods = tutorDoc.data().paymentMethods;
+          }
+        } catch (err) {
+          console.warn('Failed to fetch tutor payment methods in refreshUser:', err);
+        }
+      }
       setUser({
         id: firebaseUser.uid,
         email: firebaseUser.email || '',
@@ -112,7 +157,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         createdByTutorId: userData.createdByTutorId,
         contactNumber: userData.contactNumber,
         photoUrl: userData.photoUrl || null,
-        paymentMethods: userData.paymentMethods || {},
+        paymentMethods,
       });
     }
   };
