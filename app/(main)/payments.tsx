@@ -283,7 +283,8 @@ export default function PaymentsScreen() {
                           style={styles.showReceiptBtn}
                           activeOpacity={0.7}
                         >
-                          <Text style={styles.showReceiptText}>show receipt -{'>'}</Text>
+                          <Text style={styles.showReceiptText}>Show Receipt</Text>
+                          <MaterialCommunityIcons name="arrow-right" size={14} color="#2563eb" />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -389,6 +390,7 @@ const styles = StyleSheet.create({
   showReceiptBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
     marginTop: 4,
     paddingVertical: 2,
   },
