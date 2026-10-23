@@ -14,6 +14,7 @@ import { formatCurrency } from '../../src/utils/formatCurrency';
 import { formatDate } from '../../src/utils/formatDate';
 import { EmptyState } from '../../src/components/EmptyState';
 import { getTuteeYearTotals, belongsToSchoolYear, isMonthInSchoolYear } from '../../src/utils/schoolYear';
+import { ReceiptModal, ReceiptItem } from '../../src/components/ReceiptModal';
 
 type MergedTransaction = {
   id: string;
@@ -27,6 +28,8 @@ type MergedTransaction = {
   proofUrl?: string;
   rejectionReason?: string;
   source: 'transaction' | 'payment';
+  daysPaid?: Array<{ date: string; amountDue: number; amountPaid: number; status: string }>;
+  coverageType?: 'full' | 'partial';
 };
 
 const STATUS_CONFIG = {
@@ -47,6 +50,7 @@ export default function PaymentsScreen() {
   const [recordsMap, setRecordsMap] = useState<Record<string, MonthlyRecord[]>>({});
   const [loading, setLoading] = useState(true);
   const [proofViewerUrl, setProofViewerUrl] = useState<string | null>(null);
+  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptItem | null>(null);
 
   const focusTuteeId = from?.startsWith('children/') ? from.split('/')[1] : undefined;
   const scopeTutees = focusTuteeId ? tutees.filter((t) => t.id === focusTuteeId) : tutees;
@@ -126,6 +130,7 @@ export default function PaymentsScreen() {
       paymentMethod: t.paymentMethod,
       paymentDate: t.paymentDate,
       notes: t.notes,
+      daysPaid: t.daysPaid,
       source: 'transaction' as const,
     })),
     ...payments.map((p) => ({
@@ -139,6 +144,7 @@ export default function PaymentsScreen() {
       status: p.status,
       proofUrl: p.proofUrl,
       rejectionReason: p.rejectionReason,
+      coverageType: p.coverageType,
       source: 'payment' as const,
     })),
   ].sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
@@ -237,6 +243,7 @@ export default function PaymentsScreen() {
         ) : (
           mergedTransactions.map((txn) => {
             const statusInfo = txn.status ? STATUS_CONFIG[txn.status] : null;
+            const canShowReceipt = txn.status === 'verified' || (!txn.status && txn.status !== 'pending' && txn.status !== 'rejected');
             return (
               <Card key={txn.id} style={styles.txnCard}>
                 <Card.Content>
@@ -258,7 +265,28 @@ export default function PaymentsScreen() {
                         <Text style={styles.rejectionText}>Reason: {txn.rejectionReason}</Text>
                       )}
                     </View>
-                    <Text style={styles.txnDate}>{formatDate(txn.paymentDate)}</Text>
+                    <View style={styles.txnRight}>
+                      <Text style={styles.txnDate}>{formatDate(txn.paymentDate)}</Text>
+                      {canShowReceipt && (
+                        <TouchableOpacity
+                          onPress={() => setSelectedReceipt({
+                            id: txn.id,
+                            tuteeName: txn.tuteeName || (focusedTutee ? `${focusedTutee.firstName} ${focusedTutee.surname}` : 'Student'),
+                            paymentDate: txn.paymentDate,
+                            amount: txn.amount,
+                            paymentMethod: txn.paymentMethod,
+                            status: txn.status,
+                            coverageType: txn.coverageType,
+                            notes: txn.notes,
+                            daysPaid: txn.daysPaid,
+                          })}
+                          style={styles.showReceiptBtn}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.showReceiptText}>show receipt -{'>'}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
 
                   {txn.proofUrl && (txn.status === 'pending' || txn.status === 'rejected' || txn.status === 'verified') && (
@@ -305,6 +333,13 @@ export default function PaymentsScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Payment Receipt Modal */}
+      <ReceiptModal
+        visible={!!selectedReceipt}
+        receipt={selectedReceipt}
+        onClose={() => setSelectedReceipt(null)}
+      />
     </>
   );
 }
@@ -347,6 +382,21 @@ const styles = StyleSheet.create({
   txnNotes: { fontSize: 11, color: '#9ca3af', marginTop: 2, fontStyle: 'italic' },
   rejectionText: { fontSize: 11, color: '#dc2626', marginTop: 2, fontStyle: 'italic' },
   txnDate: { fontSize: 12, color: '#9ca3af' },
+  txnRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start',
+  },
+  showReceiptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingVertical: 2,
+  },
+  showReceiptText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
   proofPreview: {
     marginTop: 10,
     borderRadius: 8,
