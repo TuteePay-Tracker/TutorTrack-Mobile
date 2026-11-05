@@ -10,6 +10,7 @@ import { tuteeService } from '../../../src/services/tuteeService';
 import { paymentService, PaymentTransaction, getDayAttendance } from '../../../src/services/paymentService';
 import { Payment } from '../../../src/types/payment';
 import { assessmentService } from '../../../src/services/assessmentService';
+import { topicService, Topic, StudentTopicProgress, LEVEL_CONFIG } from '../../../src/services/topicService';
 import { Tutee } from '../../../src/types/tutee';
 import { Assessment } from '../../../src/types/assessment';
 import { formatCurrency } from '../../../src/utils/formatCurrency';
@@ -45,9 +46,12 @@ export default function ChildDetailsScreen() {
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [topicProgress, setTopicProgress] = useState<StudentTopicProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [proofViewerUrl, setProofViewerUrl] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<{ presentCount: number; totalSessions: number }>({ presentCount: 0, totalSessions: 0 });
+  const [activeTopicSubject, setActiveTopicSubject] = useState<string>('');
 
   useEffect(() => {
     if (!id || !user?.createdByTutorId) return;
@@ -91,6 +95,21 @@ export default function ChildDetailsScreen() {
         });
         unsubs.push(unsubRecords);
 
+        // Subscribe to topic data
+        const unsubTopics = topicService.subscribeTopics(tutorId, (data) => {
+          setTopics(data);
+        });
+        unsubs.push(unsubTopics);
+
+        const unsubProgress = topicService.subscribeTopicProgress(tutorId, (data) => {
+          // Filter to this student + current school year
+          const filtered = data.filter(
+            (p) => p.tuteeId === id && (!p.schoolYear || p.schoolYear === selectedYear)
+          );
+          setTopicProgress(filtered);
+        });
+        unsubs.push(unsubProgress);
+
         setLoading(false);
       } catch (error) {
         console.error('Error fetching child details:', error);
@@ -123,6 +142,27 @@ export default function ChildDetailsScreen() {
   }
 
   const subjects = tutee.subjects?.length ? tutee.subjects : [tutee.subject];
+  const currentTopicSubject = activeTopicSubject || subjects[0] || '';
+
+  // Build progress map keyed by `${tuteeId}_${topicId}`
+  const progressMap = new Map<string, StudentTopicProgress>();
+  topicProgress.forEach((p) => progressMap.set(`${p.tuteeId}_${p.topicId}`, p));
+
+  // Topics for the currently active subject
+  const subjectTopics = topics.filter(
+    (t) => t.subject.trim().toLowerCase() === currentTopicSubject.trim().toLowerCase()
+  );
+
+  // KPI summary
+  let masteredCount = 0;
+  let inProgressCount = 0;
+  let needsImprovementCount = 0;
+  subjectTopics.forEach((t) => {
+    const prog = progressMap.get(`${id}_${t.id}`);
+    if (prog?.performanceLevel === 'mastered') masteredCount++;
+    else if (prog?.performanceLevel === 'in-progress') inProgressCount++;
+    else if (prog?.performanceLevel === 'needs-improvement') needsImprovementCount++;
+  });
 
   const attendanceRate =
     attendance.totalSessions > 0
@@ -328,6 +368,137 @@ export default function ChildDetailsScreen() {
                   </View>
                 </View>
               ))
+            )}
+          </Card.Content>
+        </Card>
+
+        {/* ── Topic Progress Section ── */}
+        <Card style={styles.sectionCard}>
+          <Card.Content>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="book-check-outline" size={18} color="#2563eb" />
+              <Text style={styles.sectionTitle}>Topic Progress</Text>
+            </View>
+
+            {/* Subject selector tabs (only shown for multi-subject students) */}
+            {subjects.length > 1 && (
+              <View style={styles.subjectTabRow}>
+                {subjects.map((subj) => (
+                  <TouchableOpacity
+                    key={subj}
+                    onPress={() => setActiveTopicSubject(subj)}
+                    style={[
+                      styles.subjectTab,
+                      currentTopicSubject === subj && styles.subjectTabActive,
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.subjectTabText,
+                        currentTopicSubject === subj && styles.subjectTabTextActive,
+                      ]}
+                    >
+                      {subj}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* KPI summary row */}
+            {subjectTopics.length > 0 && (
+              <View style={styles.kpiRow}>
+                <View style={styles.kpiBox}>
+                  <Text style={styles.kpiValue}>{subjectTopics.length}</Text>
+                  <Text style={styles.kpiLabel}>Total</Text>
+                </View>
+                <View style={[styles.kpiBox, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
+                  <Text style={[styles.kpiValue, { color: '#15803d' }]}>{masteredCount}</Text>
+                  <Text style={[styles.kpiLabel, { color: '#15803d' }]}>Mastered</Text>
+                </View>
+                <View style={[styles.kpiBox, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }]}>
+                  <Text style={[styles.kpiValue, { color: '#1d4ed8' }]}>{inProgressCount}</Text>
+                  <Text style={[styles.kpiLabel, { color: '#1d4ed8' }]}>In Progress</Text>
+                </View>
+                <View style={[styles.kpiBox, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
+                  <Text style={[styles.kpiValue, { color: '#b45309' }]}>{needsImprovementCount}</Text>
+                  <Text style={[styles.kpiLabel, { color: '#b45309' }]}>Needs Work</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Topic list */}
+            {subjectTopics.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No topics added yet for {currentTopicSubject || 'this subject'}.
+              </Text>
+            ) : (
+              subjectTopics.map((topic) => {
+                const prog = progressMap.get(`${id}_${topic.id}`);
+                const level = prog?.performanceLevel ?? 'not-started';
+                const cfg = LEVEL_CONFIG[level];
+                const scoreWidth = prog ? Math.min(prog.score, 100) : 0;
+
+                return (
+                  <View key={topic.id} style={styles.topicCard}>
+                    {/* Header row */}
+                    <View style={styles.topicHeader}>
+                      <Text style={styles.topicName} numberOfLines={2}>
+                        {topic.name}
+                      </Text>
+                      <View style={[styles.levelBadge, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
+                        <Text style={[styles.levelBadgeText, { color: cfg.color }]}>{cfg.label}</Text>
+                      </View>
+                    </View>
+
+                    {topic.description ? (
+                      <Text style={styles.topicDesc} numberOfLines={2}>{topic.description}</Text>
+                    ) : null}
+
+                    {/* Score + progress bar */}
+                    {prog ? (
+                      <>
+                        <View style={styles.scoreRow}>
+                          <Text style={styles.scoreLabel}>Score</Text>
+                          <Text style={[styles.scoreValue, { color: cfg.color }]}>{prog.score}%</Text>
+                        </View>
+                        <View style={styles.progressTrack}>
+                          <View
+                            style={[
+                              styles.progressFill,
+                              { width: `${scoreWidth}%` as any, backgroundColor: cfg.barColor },
+                            ]}
+                          />
+                        </View>
+
+                        {prog.strengths ? (
+                          <View style={[styles.noteBox, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
+                            <Text style={styles.noteLabel}>Strengths</Text>
+                            <Text style={[styles.noteText, { color: '#166534' }]}>{prog.strengths}</Text>
+                          </View>
+                        ) : null}
+
+                        {prog.areasForImprovement ? (
+                          <View style={[styles.noteBox, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
+                            <Text style={styles.noteLabel}>Areas for Improvement</Text>
+                            <Text style={[styles.noteText, { color: '#92400e' }]}>{prog.areasForImprovement}</Text>
+                          </View>
+                        ) : null}
+
+                        {prog.notes ? (
+                          <View style={[styles.noteBox, { backgroundColor: '#f9fafb', borderColor: '#e5e7eb' }]}>
+                            <Text style={styles.noteLabel}>Tutor Notes</Text>
+                            <Text style={[styles.noteText, { color: '#374151', fontStyle: 'italic' }]}>{prog.notes}</Text>
+                          </View>
+                        ) : null}
+                      </>
+                    ) : (
+                      <Text style={styles.noEvalText}>No evaluation recorded yet.</Text>
+                    )}
+                  </View>
+                );
+              })
             )}
           </Card.Content>
         </Card>
@@ -611,5 +782,149 @@ const styles = StyleSheet.create({
     width: '90%',
     height: '70%',
     borderRadius: 8,
+  },
+  // ── Topic progress styles ──
+  subjectTabRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  subjectTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#f9fafb',
+  },
+  subjectTabActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  subjectTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  subjectTabTextActive: {
+    color: '#ffffff',
+  },
+  kpiRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  kpiBox: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+  },
+  kpiValue: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#111827',
+  },
+  kpiLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  topicCard: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    backgroundColor: '#fafafa',
+  },
+  topicHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 4,
+  },
+  topicName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#111827',
+    lineHeight: 20,
+  },
+  levelBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexShrink: 0,
+  },
+  levelBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  topicDesc: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginBottom: 8,
+    lineHeight: 16,
+  },
+  scoreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  scoreLabel: {
+    fontSize: 11,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  scoreValue: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  progressTrack: {
+    height: 6,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  noteBox: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 6,
+  },
+  noteLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
+  noteText: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  noEvalText: {
+    fontSize: 12,
+    color: '#9ca3af',
+    fontStyle: 'italic',
+    marginTop: 6,
   },
 });
