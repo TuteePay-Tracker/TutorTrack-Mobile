@@ -351,7 +351,7 @@ export default function ChildDetailsScreen() {
             {assessments.length === 0 ? (
               <Text style={styles.emptyText}>No assessment records yet</Text>
             ) : (
-              assessments.map((a) => (
+              assessments.slice(0, 5).map((a) => (
                 <View key={a.id} style={styles.assessmentItem}>
                   <View style={styles.assessmentInfo}>
                     <Text style={styles.assessmentSubject}>{a.subject}</Text>
