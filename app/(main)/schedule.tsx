@@ -1,11 +1,15 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { Text, Card, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useTabBarHeight } from '../../src/hooks/useTabBarHeight';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useTutees } from '../../src/hooks/useTutees';
+import { useSchoolYear } from '../../src/contexts/SchoolYearContext';
+import { isMonthInSchoolYear } from '../../src/utils/schoolYear';
+import { paymentService, AttendanceRecord } from '../../src/services/paymentService';
+import { Payment } from '../../src/types/payment';
 import { formatTime12h } from '../../src/utils/formatTime';
 import { EmptyState } from '../../src/components/EmptyState';
 
@@ -22,8 +26,6 @@ function normalizeDay(day: string): string {
   return day;
 }
 
-const WEEKS_AHEAD = 4;
-
 interface DatedSession {
   date: Date;
   dayLabel: string;
@@ -32,26 +34,6 @@ interface DatedSession {
   endTime: string;
   tuteeName: string;
   subject: string;
-}
-
-function getNextOccurrences(dayAbbr: string, count: number): Date[] {
-  const targetDay = DAY_MAP[dayAbbr];
-  if (targetDay === undefined) return [];
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const currentDay = today.getDay();
-
-  let daysUntilTarget = targetDay - currentDay;
-  if (daysUntilTarget <= 0) daysUntilTarget += 7;
-
-  const dates: Date[] = [];
-  for (let i = 0; i < count; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + daysUntilTarget + i * 7);
-    dates.push(d);
-  }
-  return dates;
 }
 
 function formatDateLabel(date: Date): string {
@@ -64,7 +46,9 @@ function getWeekLabel(date: Date): string {
   today.setHours(0, 0, 0, 0);
 
   const startOfThisWeek = new Date(today);
-  startOfThisWeek.setDate(today.getDate() - today.getDay() + 1);
+  const day = today.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // Monday start of week
+  startOfThisWeek.setDate(today.getDate() + diff);
   startOfThisWeek.setHours(0, 0, 0, 0);
 
   const startOfNextWeek = new Date(startOfThisWeek);
@@ -79,17 +63,257 @@ function getWeekLabel(date: Date): string {
   if (sessionDate >= startOfThisWeek && sessionDate < startOfNextWeek) return 'This Week';
   if (sessionDate >= startOfNextWeek && sessionDate < startOfWeekAfter) return 'Next Week';
 
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
   return `${months[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function getMatchingScheduleSlots(
+  schedule: any,
+  dayName: string
+): Array<{ startTime?: string; endTime?: string; time?: string; subject?: string }> {
+  if (!Array.isArray(schedule)) return [];
+
+  const targetDayNum = DAY_MAP[dayName];
+  if (targetDayNum === undefined) return [];
+
+  const matches: Array<{ startTime?: string; endTime?: string; time?: string; subject?: string }> = [];
+
+  schedule.forEach((s) => {
+    if (!s || typeof s !== 'object') return;
+    const normalized = normalizeDay(s.day || '');
+    if (DAY_MAP[normalized] === targetDayNum) {
+      matches.push(s);
+    }
+  });
+
+  return matches;
 }
 
 export default function ScheduleScreen() {
   const { user } = useAuth();
-  const { tutees, isLoading } = useTutees();
+  const { tutees, isLoading: tuteesLoading } = useTutees();
+  const { selectedYear } = useSchoolYear();
   const tabBarHeight = useTabBarHeight();
   const router = useRouter();
+  const { from, tuteeId } = useLocalSearchParams<{ from?: string; tuteeId?: string }>();
 
-  if (isLoading) {
+  const [paymentRecords, setPaymentRecords] = useState<AttendanceRecord[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const focusTuteeId = tuteeId || (from?.startsWith('children/') ? from.split('/')[1] : undefined);
+  const scopeTutees = useMemo(() => {
+    return focusTuteeId ? tutees.filter((t) => t.id === focusTuteeId) : tutees;
+  }, [tutees, focusTuteeId]);
+
+  const scopeTuteeIds = useMemo(() => {
+    return scopeTutees.map((t) => t.id).sort().join(',');
+  }, [scopeTutees]);
+
+  // Subscribe in real-time to payment/billing records for the scoped tutees
+  useEffect(() => {
+    const tutorId = user?.role === 'parent' ? user.createdByTutorId : user?.id;
+    if (!tutorId || scopeTutees.length === 0) {
+      setPaymentRecords([]);
+      setPayments([]);
+      setRecordsLoading(false);
+      return;
+    }
+
+    setRecordsLoading(true);
+    const ids = scopeTutees.map((t) => t.id);
+
+    const unsubRecords = paymentService.subscribeRecordsForTutees(
+      tutorId,
+      ids,
+      (recs) => {
+        setPaymentRecords(recs);
+        setRecordsLoading(false);
+      },
+      (err) => {
+        console.error('Error fetching payment records for schedule:', err);
+        setRecordsLoading(false);
+      }
+    );
+
+    const unsubPayments = paymentService.subscribeAllPayments(
+      tutorId,
+      ids,
+      (pays) => {
+        setPayments(pays);
+      }
+    );
+
+    return () => {
+      unsubRecords();
+      unsubPayments();
+    };
+  }, [user?.role, user?.createdByTutorId, user?.id, scopeTuteeIds]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 800);
+  }, []);
+
+  // Map of tuteeId -> Set of valid "YYYY-MM" months that exist in Firestore billing/payment records
+  const tuteeValidMonthsMap = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    scopeTutees.forEach((t) => map.set(t.id, new Set<string>()));
+
+    paymentRecords.forEach((rec) => {
+      if (rec.tuteeId && rec.month) {
+        if (!selectedYear || isMonthInSchoolYear(rec.month, selectedYear)) {
+          if (!map.has(rec.tuteeId)) map.set(rec.tuteeId, new Set<string>());
+          map.get(rec.tuteeId)!.add(rec.month);
+        }
+      }
+    });
+
+    payments.forEach((p) => {
+      if (p.tuteeId && p.month) {
+        if (!selectedYear || isMonthInSchoolYear(p.month, selectedYear)) {
+          if (!map.has(p.tuteeId)) map.set(p.tuteeId, new Set<string>());
+          map.get(p.tuteeId)!.add(p.month);
+        }
+      }
+    });
+
+    return map;
+  }, [scopeTutees, paymentRecords, payments, selectedYear]);
+
+  // Construct sessions only for months with existing payment or billing records
+  const sessions = useMemo(() => {
+    const list: DatedSession[] = [];
+
+    scopeTutees.forEach((tutee) => {
+      const validMonths = tuteeValidMonthsMap.get(tutee.id);
+      if (!validMonths || validMonths.size === 0) return;
+
+      validMonths.forEach((monthKey) => {
+        const record = paymentRecords.find((r) => r.tuteeId === tutee.id && r.month === monthKey);
+
+        if (record && Array.isArray(record.dayPayments) && record.dayPayments.length > 0) {
+          // Use scheduled day records from Firestore payment record
+          record.dayPayments.forEach((dp) => {
+            if (dp.status === 'no-class') return; // Exclude cancelled/no-class sessions
+
+            const [y, m, d] = dp.date.split('-').map(Number);
+            if (!y || !m || !d) return;
+            const date = new Date(y, m - 1, d);
+            const dayName = DAY_NAMES[date.getDay()];
+            const matchingSlots = getMatchingScheduleSlots(tutee.schedule, dayName);
+
+            if (matchingSlots.length > 0) {
+              matchingSlots.forEach((slot) => {
+                list.push({
+                  date,
+                  dayLabel: dayName,
+                  dateLabel: formatDateLabel(date),
+                  startTime: slot.startTime || slot.time || '',
+                  endTime: slot.endTime || '',
+                  tuteeName: `${tutee.firstName} ${tutee.surname}`,
+                  subject: slot.subject || tutee.subject || 'Session',
+                });
+              });
+            } else {
+              list.push({
+                date,
+                dayLabel: dayName,
+                dateLabel: formatDateLabel(date),
+                startTime: '',
+                endTime: '',
+                tuteeName: `${tutee.firstName} ${tutee.surname}`,
+                subject: tutee.subject || 'Session',
+              });
+            }
+          });
+        } else {
+          // If record exists for month but dayPayments is not populated, calculate days in month
+          const [yearStr, monthStr] = monthKey.split('-');
+          const year = parseInt(yearStr, 10);
+          const monthIndex = parseInt(monthStr, 10) - 1;
+          if (isNaN(year) || isNaN(monthIndex)) return;
+
+          const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+          for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
+            const date = new Date(year, monthIndex, dayNum);
+            const dayName = DAY_NAMES[date.getDay()];
+            const matchingSlots = getMatchingScheduleSlots(tutee.schedule, dayName);
+
+            matchingSlots.forEach((slot) => {
+              list.push({
+                date,
+                dayLabel: dayName,
+                dateLabel: formatDateLabel(date),
+                startTime: slot.startTime || slot.time || '',
+                endTime: slot.endTime || '',
+                tuteeName: `${tutee.firstName} ${tutee.surname}`,
+                subject: slot.subject || tutee.subject || 'Session',
+              });
+            });
+          }
+        }
+      });
+    });
+
+    list.sort((a, b) => {
+      const timeDiff = a.date.getTime() - b.date.getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return (a.startTime || '').localeCompare(b.startTime || '');
+    });
+
+    return list;
+  }, [scopeTutees, tuteeValidMonthsMap, paymentRecords]);
+
+  // Group sessions by week or month label
+  const grouped = useMemo(() => {
+    const groupedMap = new Map<string, DatedSession[]>();
+    sessions.forEach((session) => {
+      const weekLabel = getWeekLabel(session.date);
+      if (!groupedMap.has(weekLabel)) {
+        groupedMap.set(weekLabel, []);
+      }
+      groupedMap.get(weekLabel)!.push(session);
+    });
+
+    const result = Array.from(groupedMap.entries()).map(([label, items]) => ({
+      label,
+      items,
+    }));
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    result.sort((a, b) => {
+      if (a.label === 'This Week') return -1;
+      if (b.label === 'This Week') return 1;
+
+      if (a.label === 'Next Week') return -1;
+      if (b.label === 'Next Week') return 1;
+
+      const aDate = a.items[0]?.date.getTime() || 0;
+      const bDate = b.items[0]?.date.getTime() || 0;
+
+      const aIsFuture = aDate >= today.getTime();
+      const bIsFuture = bDate >= today.getTime();
+
+      if (aIsFuture && !bIsFuture) return -1;
+      if (!aIsFuture && bIsFuture) return 1;
+
+      if (aIsFuture && bIsFuture) {
+        return aDate - bDate;
+      }
+      return bDate - aDate;
+    });
+
+    return result;
+  }, [sessions]);
+
+  if (tuteesLoading || recordsLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563eb" />
@@ -97,69 +321,34 @@ export default function ScheduleScreen() {
     );
   }
 
-  const sessions: DatedSession[] = [];
-  const totalWeeks = WEEKS_AHEAD + 1;
-
-  tutees.forEach((tutee) => {
-    if (!Array.isArray(tutee.schedule)) return;
-    tutee.schedule.forEach((s) => {
-      if (!s || typeof s !== 'object') return;
-
-      const day = normalizeDay(s.day || '');
-      if (!day || DAY_MAP[day] === undefined) return;
-
-      const startTime = s.startTime || s.time || '';
-      const endTime = s.endTime || '';
-      if (!startTime) return;
-
-      const dates = getNextOccurrences(day, totalWeeks);
-      dates.forEach((date) => {
-        sessions.push({
-          date,
-          dayLabel: DAY_NAMES[date.getDay()],
-          dateLabel: formatDateLabel(date),
-          startTime,
-          endTime,
-          tuteeName: `${tutee.firstName} ${tutee.surname}`,
-          subject: tutee.subject || 'Session',
-        });
-      });
-    });
-  });
-
-  sessions.sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  const grouped: { label: string; items: DatedSession[] }[] = [];
-  sessions.forEach((session) => {
-    const weekLabel = getWeekLabel(session.date);
-    const existing = grouped.find((g) => g.label === weekLabel);
-    if (existing) {
-      existing.items.push(session);
-    } else {
-      grouped.push({ label: weekLabel, items: [session] });
-    }
-  });
-
   return (
     <>
-      <Stack.Screen options={{
-        headerShown: true,
-        title: '',
-        headerTintColor: '#2563eb',
-        headerShadowVisible: false,
-        headerStyle: { backgroundColor: '#eff6ff' },
-        headerLeft: () => (
-          <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-            <MaterialCommunityIcons name="chevron-left" size={28} color="#2563eb" />
-          </TouchableOpacity>
-        ),
-      }} />
-      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: '',
+          headerTintColor: '#2563eb',
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: '#eff6ff' },
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+              <MaterialCommunityIcons name="chevron-left" size={28} color="#2563eb" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight }]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563eb']} />
+        }
+      >
         {grouped.length === 0 ? (
           <EmptyState
             icon="calendar-blank-outline"
             title="No Schedule"
-            message="No tutoring sessions have been scheduled yet."
+            message="No tutoring sessions have been scheduled yet for billing periods on file."
           />
         ) : (
           grouped.map((group) => (
@@ -170,16 +359,19 @@ export default function ScheduleScreen() {
                   <Card.Content style={styles.cardContent}>
                     <View style={styles.dateColumn}>
                       <Text style={styles.dayLabel}>{session.dayLabel}</Text>
-                      <Text style={styles.dateLabel}>{session.dateLabel.split(', ')[1]}</Text>
+                      <Text style={styles.dateLabel}>{session.dateLabel.split(', ')[1] || session.dateLabel}</Text>
                     </View>
                     <View style={styles.divider} />
                     <View style={styles.detailsColumn}>
-                      <View style={styles.timeRow}>
-                        <MaterialCommunityIcons name="clock-outline" size={14} color="#2563eb" />
-                        <Text style={styles.timeText}>
-                          {formatTime12h(session.startTime)}{session.endTime ? ` - ${formatTime12h(session.endTime)}` : ''}
-                        </Text>
-                      </View>
+                      {session.startTime ? (
+                        <View style={styles.timeRow}>
+                          <MaterialCommunityIcons name="clock-outline" size={14} color="#2563eb" />
+                          <Text style={styles.timeText}>
+                            {formatTime12h(session.startTime)}
+                            {session.endTime ? ` - ${formatTime12h(session.endTime)}` : ''}
+                          </Text>
+                        </View>
+                      ) : null}
                       <Text style={styles.tuteeName}>{session.tuteeName}</Text>
                       <Text style={styles.subject}>{session.subject}</Text>
                     </View>

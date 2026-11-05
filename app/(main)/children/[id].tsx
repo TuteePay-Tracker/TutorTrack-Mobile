@@ -243,7 +243,7 @@ export default function ChildDetailsScreen() {
         {Array.isArray(tutee.schedule) && tutee.schedule.length > 0 && (
           <Card style={styles.sectionCard}>
             <Card.Content>
-              <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/schedule`)} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push(`/(main)/schedule?from=children/${id}`)} activeOpacity={0.7}>
                 <MaterialCommunityIcons name="calendar-outline" size={18} color="#2563eb" />
                 <Text style={styles.sectionTitle}>Schedule</Text>
                 <View style={styles.seeAllRow}>

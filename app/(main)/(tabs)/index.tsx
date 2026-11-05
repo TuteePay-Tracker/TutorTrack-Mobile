@@ -417,8 +417,18 @@ export default function ParentDashboard() {
 
       {/* Redesigned Weekly Schedule Layout */}
       <View style={styles.scheduleHeaderRow}>
-        <Text style={styles.sectionTitle}>Weekly Schedule</Text>
-        <Text style={styles.scheduleDateRange}>{getWeekRangeLabel()}</Text>
+        <View>
+          <Text style={styles.sectionTitle}>Weekly Schedule</Text>
+          <Text style={styles.scheduleDateRange}>{getWeekRangeLabel()}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.seeAllRow}
+          onPress={() => router.push('/(main)/schedule')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.seeAllText}>See all</Text>
+          <MaterialCommunityIcons name="arrow-right" size={16} color="#2563eb" />
+        </TouchableOpacity>
       </View>
       <View style={styles.daysRow}>
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((day) => {
@@ -494,7 +504,7 @@ export default function ParentDashboard() {
               ✓ {totalPresent} present
             </Text>
             <Text style={[styles.attendanceStatText, { color: '#dc2626' }]}>
-              ✕ {absentCount} absent
+              ✕ {absentCount} unattended
             </Text>
           </View>
         </Card.Content>
