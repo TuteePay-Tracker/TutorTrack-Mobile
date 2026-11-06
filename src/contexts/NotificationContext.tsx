@@ -6,6 +6,7 @@ import React, {
   ReactNode,
 } from 'react';
 import * as Notifications from 'expo-notifications';
+import { AppState } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthContext } from './AuthContext';
 import {
@@ -108,39 +109,88 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Register for push + run the payment-due daily check when a user signs in.
+  //
+  // Registration must NOT be gated on the UID alone: a restored parent account
+  // keeps the same UID but loses its `pushTokens` subcollection when the old
+  // account was cleared. `ensurePushTokenRegistered` re-saves the device token
+  // whenever it is missing, so notifications keep working without the user
+  // having to toggle the setting off and on.
   useEffect(() => {
-    if (!user) return;
-
-    if (registeredUserIdRef.current !== user.id) {
-      registeredUserIdRef.current = user.id;
-      isPushDisabled()
-        .then((disabled) => {
-          if (disabled) {
-            setPushEnabled(false);
-            return;
-          }
-          return notificationService
-            .registerForPushNotifications()
-            .then((token) => {
-              if (token) setPushToken(token);
-              setPushEnabled(true);
-            });
-        })
-        .catch((error) => {
-          console.warn('Failed to register for push notifications:', error);
-        });
+    if (!user) {
+      // Session ended (logout or revoked account): forget the previous user so
+      // the next sign-in always re-registers their token.
+      registeredUserIdRef.current = null;
+      setPushToken(null);
+      setPushEnabled(false);
+      return;
     }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const disabled = await isPushDisabled();
+        if (cancelled) return;
+        if (disabled) {
+          setPushEnabled(false);
+          return;
+        }
+
+        const token = await notificationService.ensurePushTokenRegistered();
+        if (cancelled) return;
+        if (token) {
+          registeredUserIdRef.current = user.id;
+          setPushToken(token);
+          setPushEnabled(true);
+        } else {
+          setPushEnabled(false);
+        }
+      } catch (error) {
+        console.warn('Failed to register for push notifications:', error);
+      }
+    })();
 
     // Payment reminders (local + remote push) only apply when notifications
     // have not been disabled from the Settings screen.
     if (user.role === 'parent') {
       isPushDisabled().then((disabled) => {
-        if (disabled) return;
+        if (disabled || cancelled) return;
         notificationService
           .schedulePaymentReminders()
           .catch((error) => console.warn('Failed to check payment reminders:', error));
       });
     }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Re-check the token whenever the app returns to the foreground. This covers
+  // a restore performed while the app was backgrounded and any token cleanup
+  // that happened while the device was idle.
+  useEffect(() => {
+    if (!user) return;
+
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      isPushDisabled()
+        .then((disabled) => {
+          if (disabled) return undefined;
+          return notificationService.ensurePushTokenRegistered().then((token) => {
+            if (token) {
+              registeredUserIdRef.current = user.id;
+              setPushToken(token);
+              setPushEnabled(true);
+            }
+          });
+        })
+        .catch((error) => {
+          console.warn('Failed to refresh push token on foreground:', error);
+        });
+    });
+
+    return () => subscription.remove();
   }, [user]);
 
   // Flush a pending notification route once the user is authenticated and the

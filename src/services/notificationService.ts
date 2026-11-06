@@ -162,7 +162,12 @@ export function notificationRouteFromData(data: Record<string, any>): string | n
 }
 
 export const notificationService = {
-  async registerForPushNotifications(): Promise<string | null> {
+  /**
+   * Acquires the device's current Expo push token. Prompts for notification
+   * permission the first time and returns null when the user has not granted it
+   * (or when running on a simulator without push support).
+   */
+  async getExpoPushToken(): Promise<string | null> {
     if (!Device.isDevice) {
       console.warn('Push notifications require a physical device');
       return null;
@@ -191,13 +196,56 @@ export const notificationService = {
     }
 
     const token = await Notifications.getExpoPushTokenAsync({ projectId });
+    return token.data ?? null;
+  },
+
+  /**
+   * Force-registers the current device token for the signed-in user. Used by
+   * the Settings toggle, where the user explicitly asks to (re)enable push.
+   */
+  async registerForPushNotifications(): Promise<string | null> {
+    const token = await this.getExpoPushToken();
+    if (!token) return null;
 
     const userId = auth.currentUser?.uid;
-    if (userId && token.data) {
-      await this.saveToken(userId, token.data);
+    if (userId) {
+      await this.saveToken(userId, token);
     }
 
-    return token.data;
+    return token;
+  },
+
+  /**
+   * Self-healing registration used on login and whenever the app returns to
+   * the foreground.
+   *
+   * Push tokens live under `users/{uid}/pushTokens` and are cascade-deleted
+   * when a parent account is removed/cleared. A backup restore recreates the
+   * same UID but cannot restore the device token, so the app must repopulate it.
+   * This method only writes when the token is missing, avoiding needless
+   * Firestore writes on every launch.
+   */
+  async ensurePushTokenRegistered(): Promise<string | null> {
+    const token = await this.getExpoPushToken();
+    if (!token) return null;
+
+    const userId = auth.currentUser?.uid;
+    if (!userId) return token;
+
+    const tokenRef = doc(db, 'users', userId, 'pushTokens', encodeURIComponent(token));
+    try {
+      const existing = await getDoc(tokenRef);
+      if (!existing.exists()) {
+        await this.saveToken(userId, token);
+      }
+    } catch (error) {
+      // If the existence check fails, still attempt to save: a duplicate-safe
+      // write is preferable to silently leaving the account without a token.
+      console.warn('Failed to verify stored push token, re-saving:', error);
+      await this.saveToken(userId, token);
+    }
+
+    return token;
   },
 
   async saveToken(userId: string, token: string): Promise<void> {

@@ -72,6 +72,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               updateUserState(paymentMethods);
             }
           } else {
+            // The Auth session outlived its Firestore profile (e.g. the account
+            // was cleared then restored with a fresh profile). Drop the stale
+            // user so the next sign-in re-runs registration and on-boarding.
+            setUser(null);
             setIsLoading(false);
           }
         }, (err) => {
