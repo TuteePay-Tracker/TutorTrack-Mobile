@@ -7,7 +7,7 @@ import { useTabBarHeight } from '../../../src/hooks/useTabBarHeight';
 import { useAuth } from '../../../src/hooks/useAuth';
 import { useSchoolYear } from '../../../src/contexts/SchoolYearContext';
 import { tuteeService } from '../../../src/services/tuteeService';
-import { paymentService, PaymentTransaction, getDayAttendance } from '../../../src/services/paymentService';
+import { paymentService, PaymentTransaction, MonthlyRecord, MakeUpCredit, getDayAttendance } from '../../../src/services/paymentService';
 import { Payment } from '../../../src/types/payment';
 import { assessmentService } from '../../../src/services/assessmentService';
 import { topicService, Topic, StudentTopicProgress, LEVEL_CONFIG } from '../../../src/services/topicService';
@@ -51,6 +51,8 @@ export default function ChildDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [proofViewerUrl, setProofViewerUrl] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<{ presentCount: number; totalSessions: number }>({ presentCount: 0, totalSessions: 0 });
+  const [monthlyRecords, setMonthlyRecords] = useState<MonthlyRecord[]>([]);
+  const [makeUpCredits, setMakeUpCredits] = useState<MakeUpCredit[]>([]);
   const [activeTopicSubject, setActiveTopicSubject] = useState<string>('');
 
   useEffect(() => {
@@ -91,9 +93,25 @@ export default function ChildDetailsScreen() {
               if (att !== 'no-class') total++;
             });
           });
+          setMonthlyRecords(filtered);
           setAttendance({ presentCount: present, totalSessions: total });
         });
         unsubs.push(unsubRecords);
+
+        const unsubCredits = paymentService.subscribeMakeUpCreditsByTutee(
+          tutorId,
+          id,
+          (credits) => {
+            setMakeUpCredits(
+              credits.filter(
+                (credit) =>
+                  isMonthInSchoolYear(credit.sourceMonth, selectedYear) ||
+                  (credit.targetMonth && isMonthInSchoolYear(credit.targetMonth, selectedYear))
+              )
+            );
+          }
+        );
+        unsubs.push(unsubCredits);
 
         // Subscribe to topic data
         const unsubTopics = topicService.subscribeTopics(tutorId, (data) => {
@@ -168,6 +186,18 @@ export default function ChildDetailsScreen() {
     attendance.totalSessions > 0
       ? Math.round((attendance.presentCount / attendance.totalSessions) * 100)
       : -1;
+
+  const availableMakeUpCredits = makeUpCredits.filter((credit) => credit.status === 'pending');
+  const scheduledMakeUpCredits = makeUpCredits.filter((credit) => credit.status === 'scheduled');
+  const completedMakeUpCredits = makeUpCredits.filter((credit) => credit.status === 'completed');
+  let makeUpSessionCount = 0;
+  let regularSessionCount = 0;
+  monthlyRecords.forEach((record) => {
+    (record.dayPayments || []).forEach((day) => {
+      if (day.sessionType === 'make-up' || day.makeUpCreditId) makeUpSessionCount += 1;
+      else regularSessionCount += 1;
+    });
+  });
 
   const deduplicatedTransactions = transactions.filter((t) => {
     return !payments.some(
@@ -335,6 +365,53 @@ export default function ChildDetailsScreen() {
                 </Text>
               </View>
             </View>
+          </Card.Content>
+        </Card>
+
+        <Card style={styles.sectionCard}>
+          <Card.Content>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="calendar-clock" size={18} color="#2563eb" />
+              <Text style={styles.sectionTitle}>Make-Up Credits</Text>
+            </View>
+
+            <View style={styles.kpiRow}>
+              <View style={[styles.kpiBox, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
+                <Text style={[styles.kpiValue, { color: '#b45309' }]}>{availableMakeUpCredits.length}</Text>
+                <Text style={[styles.kpiLabel, { color: '#b45309' }]}>Available</Text>
+              </View>
+              <View style={[styles.kpiBox, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }]}>
+                <Text style={[styles.kpiValue, { color: '#1d4ed8' }]}>{scheduledMakeUpCredits.length}</Text>
+                <Text style={[styles.kpiLabel, { color: '#1d4ed8' }]}>Scheduled</Text>
+              </View>
+              <View style={[styles.kpiBox, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
+                <Text style={[styles.kpiValue, { color: '#15803d' }]}>{completedMakeUpCredits.length}</Text>
+                <Text style={[styles.kpiLabel, { color: '#15803d' }]}>Completed</Text>
+              </View>
+            </View>
+
+            <Text style={styles.makeUpSummaryText}>
+              {regularSessionCount} regular + {makeUpSessionCount} make-up sessions in billing months
+            </Text>
+
+            {scheduledMakeUpCredits.length > 0 ? (
+              scheduledMakeUpCredits.map((credit) => (
+                <View key={credit.id} style={styles.makeUpSessionRow}>
+                  <MaterialCommunityIcons name="calendar-check-outline" size={16} color="#2563eb" />
+                  <View style={styles.makeUpSessionInfo}>
+                    <Text style={styles.makeUpSessionDate}>
+                      {formatDate(credit.scheduledDate || '')}
+                      {credit.startTime && credit.endTime ? ` · ${credit.startTime}–${credit.endTime}` : ''}
+                    </Text>
+                    <Text style={styles.makeUpSessionMeta}>
+                      Credit from {formatDate(credit.sourceDate)} · {credit.durationMinutes} min
+                    </Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No upcoming make-up classes</Text>
+            )}
           </Card.Content>
         </Card>
 
@@ -741,6 +818,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
     marginTop: 2,
+  },
+  makeUpSummaryText: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  makeUpSessionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  makeUpSessionInfo: {
+    flex: 1,
+  },
+  makeUpSessionDate: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  makeUpSessionMeta: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 1,
   },
   rateBadge: {
     paddingHorizontal: 14,

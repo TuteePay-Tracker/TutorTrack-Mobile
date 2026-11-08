@@ -239,15 +239,37 @@ export default function AttendanceScreen() {
                                         </Text>
                                       </View>
                                     )}
+                                    {record.dayPayments.some((d) => d.sessionType === 'make-up' || d.makeUpCreditId) && (
+                                      <View style={[styles.countChip, { backgroundColor: '#fffbeb' }]}>
+                                        <Text style={[styles.countChipText, { color: '#b45309' }]}>
+                                          {record.dayPayments.filter((d) => d.sessionType === 'make-up' || d.makeUpCreditId).length} Make-Up
+                                        </Text>
+                                      </View>
+                                    )}
                                   </View>
                                 </View>
                                 <View style={styles.dayGrid}>
                                   {record.dayPayments.map((day) => {
                                     const config = DAY_STATUS_CONFIG[day.resolvedStatus] || defaultDayConfig;
+                                    const isMakeUp = day.sessionType === 'make-up' || Boolean(day.makeUpCreditId);
                                     return (
-                                      <View key={day.date} style={[styles.dayChip, { backgroundColor: config.bg }]}>
-                                        <Text style={[styles.dayChipDate, { color: config.color }]}>{formatDayLabel(day.date)}</Text>
-                                        <Text style={[styles.dayChipStatus, { color: config.color }]}>{config.label}</Text>
+                                      <View
+                                        key={`${day.date}_${isMakeUp ? day.makeUpCreditId || 'make-up' : 'regular'}`}
+                                        style={[
+                                          styles.dayChip,
+                                          { backgroundColor: isMakeUp ? '#fffbeb' : config.bg },
+                                          isMakeUp && styles.makeUpDayChip,
+                                        ]}
+                                      >
+                                        <Text style={[styles.dayChipDate, { color: isMakeUp ? '#b45309' : config.color }]}>
+                                          {formatDayLabel(day.date)}
+                                        </Text>
+                                        {isMakeUp && day.startTime && day.endTime && (
+                                          <Text style={styles.makeUpDayTime}>{day.startTime}–{day.endTime}</Text>
+                                        )}
+                                        <Text style={[styles.dayChipStatus, { color: isMakeUp ? '#b45309' : config.color }]}>
+                                          {isMakeUp ? `Make-Up · ${config.label}` : config.label}
+                                        </Text>
                                       </View>
                                     );
                                   })}
@@ -401,6 +423,8 @@ const styles = StyleSheet.create({
   countChipText: { fontSize: 11, fontWeight: '800' },
   dayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
   dayChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, minWidth: 92, alignItems: 'center' },
+  makeUpDayChip: { borderWidth: 1, borderStyle: 'dashed', borderColor: '#f59e0b' },
   dayChipDate: { fontSize: 11, fontWeight: '700' },
+  makeUpDayTime: { fontSize: 9, fontWeight: '700', color: '#b45309', marginTop: 1 },
   dayChipStatus: { fontSize: 10, fontWeight: '800', marginTop: 1, textTransform: 'uppercase' },
 });

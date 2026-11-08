@@ -22,7 +22,19 @@ export interface MonthlyRecord {
   parentId?: string | null;
   tutorId?: string;
   month: string;
-  dayPayments: Array<{ date: string; amountDue: number; amountPaid: number; status: string }>;
+  dayPayments: Array<{
+    date: string;
+    amountDue: number;
+    amountPaid: number;
+    status: string;
+    tuteeId?: string;
+    tuteeName?: string;
+    sessionType?: 'regular' | 'make-up';
+    makeUpCreditId?: string;
+    durationMinutes?: number;
+    startTime?: string;
+    endTime?: string;
+  }>;
   totalDue: number;
   totalPaid: number;
   totalBalance: number;
@@ -39,7 +51,43 @@ export interface AttendanceDay {
   amountDue?: number;
   amountPaid?: number;
   resolvedStatus: AttendanceStatus;
+  sessionType?: 'regular' | 'make-up';
+  makeUpCreditId?: string;
+  durationMinutes?: number;
+  startTime?: string;
+  endTime?: string;
 }
+
+export interface MakeUpCredit {
+  id: string;
+  tuteeId: string;
+  tuteeName: string;
+  sourceDate: string;
+  sourceMonth: string;
+  targetMonth?: string;
+  durationMinutes: number;
+  status: 'pending' | 'scheduled' | 'completed' | 'reversed';
+  scheduledDate?: string;
+  startTime?: string;
+  endTime?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const mapAttendanceDay = (dp: any): AttendanceDay => ({
+  date: dp.date as string,
+  status: dp.status as string,
+  attendance: dp.attendance as AttendanceStatus | undefined,
+  amountDue: dp.amountDue as number | undefined,
+  amountPaid: dp.amountPaid as number | undefined,
+  resolvedStatus: getDayAttendance(dp),
+  sessionType: dp.sessionType as 'regular' | 'make-up' | undefined,
+  makeUpCreditId: dp.makeUpCreditId as string | undefined,
+  durationMinutes: dp.durationMinutes as number | undefined,
+  startTime: dp.startTime as string | undefined,
+  endTime: dp.endTime as string | undefined,
+});
 
 export const getDayAttendance = (dp: {
   status?: string;
@@ -196,14 +244,7 @@ export const paymentService = {
             id: docSnap.id,
             tuteeId: data.tuteeId as string,
             month: data.month as string,
-            dayPayments: ((data.dayPayments || []) as any[]).map((dp: any) => ({
-              date: dp.date as string,
-              status: dp.status as string,
-              attendance: dp.attendance as AttendanceStatus | undefined,
-              amountDue: dp.amountDue as number | undefined,
-              amountPaid: dp.amountPaid as number | undefined,
-              resolvedStatus: getDayAttendance(dp),
-            })),
+            dayPayments: ((data.dayPayments || []) as any[]).map(mapAttendanceDay),
           };
         });
         records.sort((a, b) => b.month.localeCompare(a.month));
@@ -211,6 +252,37 @@ export const paymentService = {
       },
       (error) => {
         console.error('Error in attendance subscription:', error);
+        if (onError) onError(error);
+      }
+    );
+  },
+
+  subscribeMakeUpCreditsByTutee(
+    tutorId: string,
+    tuteeId: string,
+    callback: (credits: MakeUpCredit[]) => void,
+    onError?: (error: Error) => void
+  ): () => void {
+    const creditsRef = collection(db, 'users', tutorId, 'makeUpCredits');
+    const q = query(creditsRef, where('tuteeId', '==', tuteeId));
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const credits = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            ...data,
+            createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+            updatedAt: data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+          } as MakeUpCredit;
+        });
+        credits.sort((a, b) => b.sourceDate.localeCompare(a.sourceDate));
+        callback(credits);
+      },
+      (error) => {
+        console.error('Error in make-up credits subscription:', error);
         if (onError) onError(error);
       }
     );
@@ -239,14 +311,7 @@ export const paymentService = {
             id: docSnap.id,
             tuteeId: data.tuteeId as string,
             month: data.month as string,
-            dayPayments: ((data.dayPayments || []) as any[]).map((dp: any) => ({
-              date: dp.date as string,
-              status: dp.status as string,
-              attendance: dp.attendance as AttendanceStatus | undefined,
-              amountDue: dp.amountDue as number | undefined,
-              amountPaid: dp.amountPaid as number | undefined,
-              resolvedStatus: getDayAttendance(dp),
-            })),
+            dayPayments: ((data.dayPayments || []) as any[]).map(mapAttendanceDay),
           };
         });
         records.sort((a, b) => b.month.localeCompare(a.month));

@@ -34,6 +34,7 @@ interface DatedSession {
   endTime: string;
   tuteeName: string;
   subject: string;
+  isMakeUp?: boolean;
 }
 
 function formatDateLabel(date: Date): string {
@@ -205,6 +206,23 @@ export default function ScheduleScreen() {
             if (!y || !m || !d) return;
             const date = new Date(y, m - 1, d);
             const dayName = DAY_NAMES[date.getDay()];
+            const isMakeUp = dp.sessionType === 'make-up' || Boolean(dp.makeUpCreditId);
+
+            if (isMakeUp) {
+              // Make-up sessions use their own scheduled time, not the weekly slot.
+              list.push({
+                date,
+                dayLabel: dayName,
+                dateLabel: formatDateLabel(date),
+                startTime: dp.startTime || '',
+                endTime: dp.endTime || '',
+                tuteeName: `${tutee.firstName} ${tutee.surname}`,
+                subject: 'Make-up class',
+                isMakeUp: true,
+              });
+              return;
+            }
+
             const matchingSlots = getMatchingScheduleSlots(tutee.schedule, dayName);
 
             if (matchingSlots.length > 0) {
@@ -372,8 +390,17 @@ export default function ScheduleScreen() {
                           </Text>
                         </View>
                       ) : null}
-                      <Text style={styles.tuteeName}>{session.tuteeName}</Text>
-                      <Text style={styles.subject}>{session.subject}</Text>
+                      <View style={styles.nameRow}>
+                        <Text style={styles.tuteeName}>{session.tuteeName}</Text>
+                        {session.isMakeUp && (
+                          <View style={styles.makeUpBadge}>
+                            <Text style={styles.makeUpBadgeText}>Make-up</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={[styles.subject, session.isMakeUp && styles.makeUpSubject]}>
+                        {session.subject}
+                      </Text>
                     </View>
                   </Card.Content>
                 </Card>
@@ -439,6 +466,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
   tuteeName: {
     fontSize: 14,
     fontWeight: '700',
@@ -448,5 +481,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
     marginTop: 1,
+  },
+  makeUpSubject: {
+    color: '#b45309',
+    fontWeight: '600',
+  },
+  makeUpBadge: {
+    backgroundColor: '#fef3c7',
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  makeUpBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#b45309',
+    textTransform: 'uppercase',
   },
 });
